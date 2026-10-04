@@ -94,8 +94,14 @@
 
   <div class="filter-row">
     <input class="text-input" id="searchInput" placeholder="Search description, location, assigned to…">
+    <select id="floorFilter" aria-label="Floor"><option value="">All floors</option></select>
+    <select id="roomFilter" aria-label="Room"><option value="">All rooms</option></select>
     <select id="tradeFilter"><option value="">All trades</option></select>
     <select id="assigneeFilter"><option value="">Everyone</option></select>
+    <div class="view-toggle" role="group" aria-label="View">
+      <button type="button" class="view-btn active" id="viewCardsBtn">Cards</button>
+      <button type="button" class="view-btn" id="viewRoomsBtn">By room</button>
+    </div>
   </div>
 
   <main class="item-grid" id="itemGrid"></main>
@@ -134,19 +140,26 @@
         </div>
         <div class="field-row">
           <div class="field">
-            <label for="f-location">Location</label>
-            <input class="text-input" id="f-location" placeholder="Room / floor / area">
+            <label for="f-room">Room / area</label>
+            <select id="f-room"></select>
           </div>
+          <div class="field">
+            <label for="f-location">Where in the room</label>
+            <input class="text-input" id="f-location" placeholder="e.g. west wall, bathroom, closet">
+          </div>
+        </div>
+        <div class="field-hint" id="roomHint" hidden></div>
+        <div class="field-row">
           <div class="field">
             <label for="f-due">Due date</label>
             <input class="text-input" id="f-due" type="date">
           </div>
-        </div>
-        <div class="field-row">
           <div class="field">
             <label for="f-assignee">Assigned to</label>
             <input class="text-input" id="f-assignee" placeholder="Sub / crew / name">
           </div>
+        </div>
+        <div class="field-row">
           <div class="field">
             <label for="f-status">Status</label>
             <select id="f-status">
@@ -156,6 +169,7 @@
               <option>Closed</option>
             </select>
           </div>
+          <div class="field"></div>
         </div>
         <div class="field">
           <label>Photo</label>
@@ -208,6 +222,30 @@
           <span></span>
           <div class="right">
             <button type="button" class="btn btn-accent" id="addProjectBtn">Add project</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rooms modal -->
+  <div class="modal-overlay" id="roomsModal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="roomsModalTitle">Rooms</h2>
+        <button class="modal-close" id="roomsModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="roomsListWrap"></div>
+        <div class="field" style="border-top:1px solid var(--border);padding-top:14px;">
+          <label for="rm-input">Add rooms &amp; areas</label>
+          <textarea id="rm-input" placeholder="101-130, 201-232, 301-332, Lobby, Breakfast Area, Laundry, Exterior"></textarea>
+          <div class="field-hint">Numbers and ranges become guest rooms and sort by floor (101 is floor 1, 214 is floor 2). Anything else, such as Lobby or Corridor 2, goes under Common areas. Separate with commas or new lines.</div>
+        </div>
+        <div class="modal-actions">
+          <span></span>
+          <div class="right">
+            <button type="button" class="btn btn-accent" id="addRoomsBtn">Add</button>
           </div>
         </div>
       </div>

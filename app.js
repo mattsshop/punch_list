@@ -1,9 +1,7 @@
-
-App · JS
 // Punch List — Firebase-backed app logic.
 // Firestore holds projects/items/allowedUsers; Storage holds item photos.
 // See README.md for the one-time Firebase project setup this depends on.
- 
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup,
@@ -18,18 +16,18 @@ import {
   getStorage, ref, uploadBytes, getDownloadURL, deleteObject
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-storage.js";
 import { firebaseConfig } from "./firebase-config.js";
- 
+
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 const storage = getStorage(fbApp);
- 
+
 const TRADES = ["Electrical","Plumbing","HVAC","Drywall & Paint","Flooring","Carpentry & Millwork",
   "Doors & Hardware","Roofing","Concrete & Masonry","Site & Landscaping","Fire & Life Safety","General / Punch"];
 const STATUSES = ["Open","In Progress","Ready for Review","Closed"];
 const STATUS_CLASS = {"Open":"status-Open","In Progress":"status-In-Progress","Ready for Review":"status-Ready-for-Review","Closed":"status-Closed"};
 const STATUS_KEY = {"Open":"open","In Progress":"progress","Ready for Review":"review","Closed":"done"};
- 
+
 // Explicit JS-name -> DOM-id map (the HTML mixes camelCase and kebab-case
 // ids, so this is clearer and safer than trying to derive one from the other).
 var ID_MAP = {
@@ -39,7 +37,7 @@ var ID_MAP = {
   toggleAuthModeBtn:"toggleAuthModeBtn", forgotPasswordBtn:"forgotPasswordBtn",
   authError:"authError", pendingEmail:"pendingEmail", copyPendingEmailBtn:"copyPendingEmailBtn",
   pendingSignOutBtn:"pendingSignOutBtn",
- 
+
   projectSelect:"projectSelect", manageProjectsBtn:"manageProjectsBtn", teamBtn:"teamBtn",
   userChip:"userChip", userChipName:"userChipName", signOutBtn:"signOutBtn", addItemBtn:"addItemBtn",
   connBanner:"connBanner", connBannerText:"connBannerText", statsRow:"statsRow",
@@ -48,7 +46,7 @@ var ID_MAP = {
   viewCardsBtn:"viewCardsBtn", viewRoomsBtn:"viewRoomsBtn",
   itemGrid:"itemGrid", emptyState:"emptyState", emptyTitle:"emptyTitle", emptyBody:"emptyBody",
   emptyAddBtn:"emptyAddBtn",
- 
+
   itemModal:"itemModal", itemModalTitle:"itemModalTitle", itemModalClose:"itemModalClose",
   itemForm:"itemForm", fTitle:"f-title", fTrade:"f-trade", fPriority:"f-priority",
   fRoom:"f-room", roomHint:"roomHint", fLocation:"f-location", fDue:"f-due", fAssignee:"f-assignee", fStatus:"f-status",
@@ -56,22 +54,22 @@ var ID_MAP = {
   photoAddLabel:"photoAddLabel", photoRemoveBtn:"photoRemoveBtn", photoInput:"photoInput",
   photoHint:"photoHint", deleteItemBtn:"deleteItemBtn", cancelItemBtn:"cancelItemBtn",
   saveItemBtn:"saveItemBtn",
- 
+
   projectModal:"projectModal", projectModalClose:"projectModalClose",
   projectListWrap:"projectListWrap", npName:"np-name", npBrand:"np-brand",
   npLocation:"np-location", addProjectBtn:"addProjectBtn",
- 
+
   roomsModal:"roomsModal", roomsModalTitle:"roomsModalTitle", roomsModalClose:"roomsModalClose",
   roomsListWrap:"roomsListWrap", rmInput:"rm-input", addRoomsBtn:"addRoomsBtn",
- 
+
   teamModal:"teamModal", teamModalClose:"teamModalClose", teamListWrap:"teamListWrap",
   ntEmail:"nt-email", ntName:"nt-name", addTeamBtn:"addTeamBtn",
- 
+
   toast:"toast"
 };
 var els = {};
 Object.keys(ID_MAP).forEach(function(key){ els[key] = document.getElementById(ID_MAP[key]); });
- 
+
 var state = {
   user: null,
   member: null, // {role, name} from allowedUsers, once resolved
@@ -89,7 +87,7 @@ var state = {
   photoRemoved: false,
   existingPhoto: null // {url, path}
 };
- 
+
 // ---------- utils ----------
 function toast(msg, ms){
   els.toast.textContent = msg;
@@ -123,7 +121,7 @@ function describeErr(err){
 function slugify(s){
   return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"").slice(0,40);
 }
- 
+
 // ---------- rooms ----------
 // A project's rooms are stored as a plain array of names on the project doc,
 // e.g. ["101","102",...,"Lobby","Laundry"]. Guest rooms (3-4 digits, optional
@@ -186,22 +184,22 @@ function knownRoomsForCurrent(){
   state.items.forEach(function(i){ if(i.room) set[i.room] = true; });
   return Object.keys(set).sort(compareRooms);
 }
- 
+
 // ================= AUTH =================
- 
+
 function showScreen(name){
   els.loginScreen.hidden = name !== "login";
   els.pendingScreen.hidden = name !== "pending";
   els.app.hidden = name !== "app";
 }
- 
+
 els.toggleAuthModeBtn.addEventListener("click", function(){
   state.authMode = state.authMode === "signin" ? "signup" : "signin";
   els.emailAuthSubmit.textContent = state.authMode === "signin" ? "Sign in" : "Create account";
   els.toggleAuthModeBtn.textContent = state.authMode === "signin" ? "Need an account? Create one" : "Have an account? Sign in";
   els.authError.hidden = true;
 });
- 
+
 els.googleSignInBtn.addEventListener("click", async function(){
   els.authError.hidden = true;
   try{
@@ -211,7 +209,7 @@ els.googleSignInBtn.addEventListener("click", async function(){
     els.authError.hidden = false;
   }
 });
- 
+
 els.emailAuthForm.addEventListener("submit", async function(e){
   e.preventDefault();
   els.authError.hidden = true;
@@ -231,7 +229,7 @@ els.emailAuthForm.addEventListener("submit", async function(e){
     els.emailAuthSubmit.disabled = false;
   }
 });
- 
+
 els.forgotPasswordBtn.addEventListener("click", async function(){
   var email = els.authEmail.value.trim();
   if(!email){ toast("Enter your email above first."); return; }
@@ -242,10 +240,10 @@ els.forgotPasswordBtn.addEventListener("click", async function(){
     toast("Couldn't send reset email — " + describeErr(err));
   }
 });
- 
+
 els.signOutBtn.addEventListener("click", function(){ signOut(auth); });
 els.pendingSignOutBtn.addEventListener("click", function(){ signOut(auth); });
- 
+
 els.copyPendingEmailBtn.addEventListener("click", async function(){
   var email = els.pendingEmail.textContent;
   try{
@@ -255,7 +253,7 @@ els.copyPendingEmailBtn.addEventListener("click", async function(){
     toast("Select the email above to copy it manually.");
   }
 });
- 
+
 onAuthStateChanged(auth, async function(user){
   teardownSubscriptions();
   state.user = user;
@@ -283,14 +281,14 @@ onAuthStateChanged(auth, async function(user){
     els.authError.hidden = false;
   }
 });
- 
+
 function teardownSubscriptions(){
   if(state.unsubItems){ state.unsubItems(); state.unsubItems = null; }
   if(state.unsubProjects){ state.unsubProjects(); state.unsubProjects = null; }
 }
- 
+
 // ================= APP BOOT =================
- 
+
 var booted = false;
 function boot(){
   if(booted) return;
@@ -298,14 +296,14 @@ function boot(){
   populateStaticSelects();
   subscribeProjects();
 }
- 
+
 function populateStaticSelects(){
   els.fTrade.innerHTML = TRADES.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join("");
   els.tradeFilter.innerHTML = '<option value="">All trades</option>' + TRADES.map(function(t){
     return '<option value="'+esc(t)+'">'+esc(t)+'</option>';
   }).join("");
 }
- 
+
 // ---------- projects ----------
 function subscribeProjects(){
   var q = query(collection(db, "projects"), orderBy("order", "asc"));
@@ -334,12 +332,12 @@ function subscribeProjects(){
     showBanner("Couldn't load projects — " + describeErr(err));
   });
 }
- 
+
 function showBanner(msg){
   els.connBannerText.textContent = msg;
   els.connBanner.hidden = false;
 }
- 
+
 function renderProjectSelect(){
   if(!state.projects.length){
     els.projectSelect.innerHTML = '<option value="">No projects yet</option>';
@@ -349,7 +347,7 @@ function renderProjectSelect(){
     return '<option value="'+esc(p.id)+'"'+(p.id===state.currentProjectId?" selected":"")+'>'+esc(p.name)+'</option>';
   }).join("");
 }
- 
+
 function selectProject(id){
   state.currentProjectId = id;
   els.projectSelect.value = id;
@@ -358,7 +356,7 @@ function selectProject(id){
   renderRoomFilters();
   subscribeItems();
 }
- 
+
 function renderProjectManageList(){
   if(!state.projects.length){
     els.projectListWrap.innerHTML = '<div class="field-hint">No projects yet — add your first one below.</div>';
@@ -389,14 +387,14 @@ function renderProjectManageList(){
     });
   });
 }
- 
+
 els.manageProjectsBtn.addEventListener("click", function(){
   renderProjectManageList();
   els.projectModal.hidden = false;
 });
 els.projectModalClose.addEventListener("click", function(){ els.projectModal.hidden = true; });
 els.projectModal.addEventListener("click", function(e){ if(e.target === els.projectModal) els.projectModal.hidden = true; });
- 
+
 els.addProjectBtn.addEventListener("click", async function(){
   var name = els.npName.value.trim();
   if(!name){ els.npName.focus(); return; }
@@ -419,9 +417,9 @@ els.addProjectBtn.addEventListener("click", async function(){
     els.addProjectBtn.disabled = false;
   }
 });
- 
+
 els.projectSelect.addEventListener("change", function(){ selectProject(els.projectSelect.value); });
- 
+
 // ---------- items ----------
 function subscribeItems(){
   if(state.unsubItems){ state.unsubItems(); state.unsubItems = null; }
@@ -452,7 +450,7 @@ function subscribeItems(){
     showBanner("Couldn't load items — " + describeErr(err));
   });
 }
- 
+
 function renderAssigneeFilter(){
   var names = Array.from(new Set(state.items.map(function(i){return i.assignedTo;}).filter(Boolean))).sort();
   var cur = els.assigneeFilter.value;
@@ -461,7 +459,7 @@ function renderAssigneeFilter(){
   }).join("");
   if(names.indexOf(cur) !== -1) els.assigneeFilter.value = cur;
 }
- 
+
 function renderStats(){
   var counts = {open:0,progress:0,review:0,done:0};
   state.items.forEach(function(i){
@@ -488,7 +486,7 @@ function renderStats(){
     });
   });
 }
- 
+
 function filteredItems(){
   var q = (els.searchInput.value||"").trim().toLowerCase();
   var trade = els.tradeFilter.value;
@@ -512,7 +510,7 @@ function filteredItems(){
     return true;
   });
 }
- 
+
 function cardHTML(i, today){
   var overdue = i.dueDate && i.dueDate < today && i.status !== "Closed";
   var thumb = i.photoURL
@@ -545,7 +543,7 @@ function cardHTML(i, today){
     + '</div>'
     + '</article>';
 }
- 
+
 // Floor heading > room heading (with open count) > that room's cards.
 function groupedHTML(list, today){
   var byFloor = {};
@@ -576,20 +574,20 @@ function groupedHTML(list, today){
         }).join("");
   }).join("");
 }
- 
+
 // Floor + room dropdowns follow the current project's rooms.
 function renderRoomFilters(){
   var rooms = knownRoomsForCurrent();
   var floors = [];
   rooms.forEach(function(r){ var f = floorLabelOf(r); if(floors.indexOf(f) === -1) floors.push(f); });
   floors.sort(compareFloorLabels);
- 
+
   var curFloor = els.floorFilter.value;
   els.floorFilter.innerHTML = '<option value="">All floors</option>' + floors.map(function(f){
     return '<option value="'+esc(f)+'">'+esc(f)+'</option>';
   }).join("");
   if(floors.indexOf(curFloor) !== -1) els.floorFilter.value = curFloor;
- 
+
   var selFloor = els.floorFilter.value;
   var curRoom = els.roomFilter.value;
   var shown = rooms.filter(function(r){ return !selFloor || floorLabelOf(r) === selFloor; });
@@ -599,7 +597,7 @@ function renderRoomFilters(){
   var valid = shown.indexOf(curRoom) !== -1 || (!selFloor && curRoom === NO_ROOM_VALUE);
   if(valid) els.roomFilter.value = curRoom;
 }
- 
+
 function renderItems(){
   var list = filteredItems();
   if(!state.currentProjectId){
@@ -627,7 +625,7 @@ function renderItems(){
   } else {
     els.itemGrid.innerHTML = list.map(function(i){ return cardHTML(i, today); }).join("");
   }
- 
+
   Array.prototype.forEach.call(els.itemGrid.querySelectorAll(".card"), function(card){
     card.addEventListener("click", function(e){
       if(e.target.closest("[data-quick-status]")) return;
@@ -649,7 +647,7 @@ function renderItems(){
     });
   });
 }
- 
+
 // ---------- item modal ----------
 function fillRoomSelect(selected){
   var rooms = roomsOf(currentProject());
@@ -673,7 +671,7 @@ function fillRoomSelect(selected){
     els.roomHint.hidden = true;
   }
 }
- 
+
 function openItemModal(id){
   state.editingItemId = id || null;
   state.photoFile = null;
@@ -684,7 +682,7 @@ function openItemModal(id){
   els.photoPreviewEmpty.hidden = false;
   els.photoRemoveBtn.hidden = true;
   els.photoHint.textContent = "";
- 
+
   if(id){
     var item = state.items.find(function(i){ return i.id === id; });
     if(!item) return;
@@ -716,18 +714,18 @@ function openItemModal(id){
   }
   els.itemModal.hidden = false;
 }
- 
+
 function closeItemModal(){
   els.itemModal.hidden = true;
   state.editingItemId = null;
 }
- 
+
 els.addItemBtn.addEventListener("click", function(){ openItemModal(null); });
 els.emptyAddBtn.addEventListener("click", function(){ openItemModal(null); });
 els.itemModalClose.addEventListener("click", closeItemModal);
 els.cancelItemBtn.addEventListener("click", closeItemModal);
 els.itemModal.addEventListener("click", function(e){ if(e.target === els.itemModal) closeItemModal(); });
- 
+
 els.photoInput.addEventListener("change", function(){
   var f = els.photoInput.files && els.photoInput.files[0];
   if(!f) return;
@@ -750,19 +748,19 @@ els.photoRemoveBtn.addEventListener("click", function(){
   els.photoPreviewEmpty.hidden = false;
   els.photoRemoveBtn.hidden = true;
 });
- 
+
 els.itemForm.addEventListener("submit", async function(e){
   e.preventDefault();
   if(!state.currentProjectId){ toast("Pick a project first."); return; }
   var title = els.fTitle.value.trim();
   if(!title){ els.fTitle.focus(); return; }
- 
+
   els.saveItemBtn.disabled = true;
   els.saveItemBtn.textContent = "Saving…";
   try{
     var photoURL = state.existingPhoto ? state.existingPhoto.url : null;
     var photoPath = state.existingPhoto ? state.existingPhoto.path : null;
- 
+
     if(state.photoFile){
       var path = "punchlist-photos/" + state.currentProjectId + "/" + Date.now() + "-" + state.photoFile.name.replace(/[^a-zA-Z0-9._-]/g,"_");
       var sref = ref(storage, path);
@@ -780,7 +778,7 @@ els.itemForm.addEventListener("submit", async function(e){
       photoURL = null;
       photoPath = null;
     }
- 
+
     var now = new Date().toISOString();
     var data = {
       projectId: state.currentProjectId,
@@ -815,7 +813,7 @@ els.itemForm.addEventListener("submit", async function(e){
     els.saveItemBtn.textContent = "Save item";
   }
 });
- 
+
 els.deleteItemBtn.addEventListener("click", async function(){
   if(!state.editingItemId) return;
   var id = state.editingItemId;
@@ -834,13 +832,13 @@ els.deleteItemBtn.addEventListener("click", async function(){
     els.deleteItemBtn.disabled = false;
   }
 });
- 
+
 els.searchInput.addEventListener("input", renderItems);
 els.tradeFilter.addEventListener("change", renderItems);
 els.assigneeFilter.addEventListener("change", renderItems);
 els.floorFilter.addEventListener("change", function(){ renderRoomFilters(); renderItems(); });
 els.roomFilter.addEventListener("change", renderItems);
- 
+
 function setViewMode(mode){
   state.viewMode = mode;
   els.viewCardsBtn.classList.toggle("active", mode === "cards");
@@ -858,7 +856,7 @@ try{
     els.viewRoomsBtn.classList.toggle("active", savedView === "rooms");
   }
 }catch(e){}
- 
+
 // ---------- rooms modal ----------
 function openRoomsModal(projectId){
   state.roomsProjectId = projectId;
@@ -927,7 +925,7 @@ els.addRoomsBtn.addEventListener("click", async function(){
     els.addRoomsBtn.disabled = false;
   }
 });
- 
+
 // ---------- team modal (owner only) ----------
 els.teamBtn.addEventListener("click", async function(){
   await renderTeamList();
@@ -935,7 +933,7 @@ els.teamBtn.addEventListener("click", async function(){
 });
 els.teamModalClose.addEventListener("click", function(){ els.teamModal.hidden = true; });
 els.teamModal.addEventListener("click", function(e){ if(e.target === els.teamModal) els.teamModal.hidden = true; });
- 
+
 async function renderTeamList(){
   els.teamListWrap.innerHTML = '<div class="field-hint">Loading…</div>';
   try{
@@ -968,7 +966,7 @@ async function renderTeamList(){
     els.teamListWrap.innerHTML = '<div class="field-hint">Couldn\'t load — ' + esc(describeErr(err)) + '</div>';
   }
 }
- 
+
 els.addTeamBtn.addEventListener("click", async function(){
   var email = els.ntEmail.value.trim();
   if(!email){ els.ntEmail.focus(); return; }
@@ -989,5 +987,3 @@ els.addTeamBtn.addEventListener("click", async function(){
     els.addTeamBtn.disabled = false;
   }
 });
- 
-

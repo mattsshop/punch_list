@@ -8,7 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<meta name="app-version" content="1.2.0">
+<link rel="stylesheet" href="style.css?v=1.2.0">
 </head>
 <body>
 
@@ -46,6 +47,7 @@
     </div>
 
     <div class="auth-error" id="authError" hidden></div>
+    <div class="app-version js-version"></div>
   </div>
 </div>
 
@@ -102,6 +104,7 @@
       <button type="button" class="view-btn active" id="viewCardsBtn">Cards</button>
       <button type="button" class="view-btn" id="viewRoomsBtn">By room</button>
     </div>
+    <button type="button" class="btn btn-ghost report-btn" id="reportBtn">✉ Email / report</button>
   </div>
 
   <main class="item-grid" id="itemGrid"></main>
@@ -228,6 +231,63 @@
     </div>
   </div>
 
+  <div class="app-footer"><span class="js-version"></span></div>
+
+  <!-- Report modal -->
+  <div class="modal-overlay" id="reportModal" hidden>
+    <div class="modal modal-wide">
+      <div class="modal-head">
+        <h2>Email / report</h2>
+        <button class="modal-close" id="reportModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="field-row">
+          <div class="field">
+            <label for="rp-scope">What to send</label>
+            <select id="rp-scope">
+              <option value="filters">What's on screen now (current filters)</option>
+              <option value="project">Whole project</option>
+              <option value="trade">One trade</option>
+            </select>
+          </div>
+          <div class="field" id="rpTradeWrap" hidden>
+            <label for="rp-trade">Trade</label>
+            <select id="rp-trade"></select>
+          </div>
+        </div>
+        <div class="check-row">
+          <label><input type="checkbox" id="rp-closed"> Include closed items</label>
+          <label><input type="checkbox" id="rp-photos" checked> Include photo links</label>
+        </div>
+        <div class="field">
+          <label for="rp-to">To</label>
+          <input class="text-input" id="rp-to" type="text" inputmode="email" placeholder="sub@example.com (separate several with commas)">
+        </div>
+        <div class="field">
+          <label for="rp-subject">Subject</label>
+          <input class="text-input" id="rp-subject" type="text">
+        </div>
+        <div class="field">
+          <label for="rp-note">Note to the sub (optional)</label>
+          <textarea id="rp-note" placeholder="e.g. Please have these done by Friday and text me photos when finished."></textarea>
+        </div>
+        <div class="field">
+          <label>Preview</label>
+          <pre class="report-preview" id="rp-preview"></pre>
+          <div class="field-hint" id="rpSummary"></div>
+          <div class="report-warn" id="rpWarn" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="rpCopyBtn">Copy text</button>
+          <div class="right">
+            <button type="button" class="btn btn-ghost" id="rpPrintBtn">Print / PDF</button>
+            <button type="button" class="btn btn-accent" id="rpEmailBtn">Open email app</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Rooms modal -->
   <div class="modal-overlay" id="roomsModal" hidden>
     <div class="modal">
@@ -283,6 +343,6 @@
 
 <div class="toast" id="toast" hidden></div>
 
-<script type="module" src="app.js"></script>
+<script type="module" src="app.js?v=1.2.0"></script>
 </body>
 </html>

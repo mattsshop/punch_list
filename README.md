@@ -129,4 +129,4 @@ If someone signs in before you've added them, they'll see a screen with their ex
 
 - **Removing a photo's storage file** happens automatically when you delete an item or replace its photo — no manual cleanup needed.
 - **Archiving a project** (via the `+` next to the project picker) hides it from the picker without deleting its items, in case you need the history later.
-- **Costs**: Firebase's free (Spark) tier comfortably covers a tool like this for a small team — Firestore and Storage both have generous daily free quotas. Keep an eye on the console's Usage tab if that ever changes.
+- **Costs**: Firebase's free (Spark) tier comfortably covers a tool like this for a small team — Firestore and Storage both have generous daily free quotas. Keep an eye on the console's Usage tab if that ever changes. 

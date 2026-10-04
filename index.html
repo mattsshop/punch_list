@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Punch List</title>
+<meta name="description" content="Shared punch list for hotel construction projects — photos, trade, priority, and status, live across the field team.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ======================= LOGIN SCREEN ======================= -->
+<div id="loginScreen" class="auth-screen">
+  <div class="auth-card">
+    <div class="brand brand-center">
+      <span class="brand-mark">PL</span>
+      <h1>Punch List</h1>
+    </div>
+    <p class="auth-sub">Sign in to see and update the shared punch list.</p>
+
+    <button id="googleSignInBtn" class="btn btn-google" type="button">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.66 9c0-.59.1-1.17.29-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+      Continue with Google
+    </button>
+
+    <div class="auth-divider"><span>or</span></div>
+
+    <form id="emailAuthForm" class="auth-form">
+      <div class="field">
+        <label for="auth-email">Email</label>
+        <input class="text-input" id="auth-email" type="email" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="auth-password">Password</label>
+        <input class="text-input" id="auth-password" type="password" autocomplete="current-password" required minlength="6">
+      </div>
+      <button type="submit" class="btn btn-accent" id="emailAuthSubmit">Sign in</button>
+    </form>
+
+    <div class="auth-links">
+      <button type="button" class="link-btn" id="toggleAuthModeBtn">Need an account? Create one</button>
+      <button type="button" class="link-btn" id="forgotPasswordBtn">Forgot password?</button>
+    </div>
+
+    <div class="auth-error" id="authError" hidden></div>
+  </div>
+</div>
+
+<!-- ======================= ACCESS PENDING SCREEN ======================= -->
+<div id="pendingScreen" class="auth-screen" hidden>
+  <div class="auth-card">
+    <div class="brand brand-center">
+      <span class="brand-mark">PL</span>
+      <h1>Almost there</h1>
+    </div>
+    <p class="auth-sub">You're signed in, but this account doesn't have access to the punch list yet.</p>
+    <div class="pending-email-row">
+      <code id="pendingEmail" class="mono"></code>
+      <button type="button" class="btn btn-ghost" id="copyPendingEmailBtn">Copy</button>
+    </div>
+    <p class="field-hint">Send that exact email to whoever manages this app so they can add you under Team access.</p>
+    <button type="button" class="btn btn-ghost" id="pendingSignOutBtn">Sign out</button>
+  </div>
+</div>
+
+<!-- ======================= APP ======================= -->
+<div id="app" hidden>
+
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark">PL</span>
+        <h1>Punch List</h1>
+      </div>
+      <div class="project-switch">
+        <select id="projectSelect" aria-label="Project"></select>
+        <button class="icon-btn" id="manageProjectsBtn" title="Add / manage projects">+</button>
+      </div>
+      <button class="btn btn-ghost" id="teamBtn" hidden>Team</button>
+      <div class="user-chip" id="userChip">
+        <span id="userChipName"></span>
+        <button class="link-btn" id="signOutBtn">Sign out</button>
+      </div>
+      <button class="btn btn-accent" id="addItemBtn">+ New item</button>
+    </div>
+  </div>
+
+  <div class="conn-banner" id="connBanner" hidden><div class="box" id="connBannerText"></div></div>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="filter-row">
+    <input class="text-input" id="searchInput" placeholder="Search description, location, assigned to…">
+    <select id="tradeFilter"><option value="">All trades</option></select>
+    <select id="assigneeFilter"><option value="">Everyone</option></select>
+  </div>
+
+  <main class="item-grid" id="itemGrid"></main>
+  <div class="empty-state" id="emptyState" hidden>
+    <h2 id="emptyTitle">No items yet</h2>
+    <p id="emptyBody">Add the first punch list item for this project.</p>
+    <button class="btn btn-accent" id="emptyAddBtn">+ New item</button>
+  </div>
+
+  <!-- Item modal -->
+  <div class="modal-overlay" id="itemModal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="itemModalTitle">New item</h2>
+        <button class="modal-close" id="itemModalClose">&times;</button>
+      </div>
+      <form class="modal-body" id="itemForm">
+        <div class="field">
+          <label for="f-title">What needs to be fixed</label>
+          <textarea id="f-title" required placeholder="e.g. Baseboard gap along west wall, room 214"></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-trade">Trade</label>
+            <select id="f-trade"></select>
+          </div>
+          <div class="field">
+            <label for="f-priority">Priority</label>
+            <select id="f-priority">
+              <option>Normal</option>
+              <option>High</option>
+              <option>Critical</option>
+              <option>Low</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-location">Location</label>
+            <input class="text-input" id="f-location" placeholder="Room / floor / area">
+          </div>
+          <div class="field">
+            <label for="f-due">Due date</label>
+            <input class="text-input" id="f-due" type="date">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-assignee">Assigned to</label>
+            <input class="text-input" id="f-assignee" placeholder="Sub / crew / name">
+          </div>
+          <div class="field">
+            <label for="f-status">Status</label>
+            <select id="f-status">
+              <option>Open</option>
+              <option>In Progress</option>
+              <option>Ready for Review</option>
+              <option>Closed</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Photo</label>
+          <div class="photo-picker">
+            <img id="photoPreviewImg" class="photo-preview" hidden alt="">
+            <div id="photoPreviewEmpty" class="photo-preview-empty">📷</div>
+            <div class="photo-actions">
+              <label class="btn btn-ghost" for="photoInput" id="photoAddLabel">Add photo</label>
+              <button type="button" class="btn btn-ghost" id="photoRemoveBtn" hidden>Remove photo</button>
+              <input type="file" accept="image/*" capture="environment" id="photoInput" hidden>
+            </div>
+          </div>
+          <div class="field-hint" id="photoHint"></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-danger" id="deleteItemBtn" hidden>Delete</button>
+          <div class="right">
+            <button type="button" class="btn btn-ghost" id="cancelItemBtn">Cancel</button>
+            <button type="submit" class="btn btn-accent" id="saveItemBtn">Save item</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Project modal -->
+  <div class="modal-overlay" id="projectModal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Projects</h2>
+        <button class="modal-close" id="projectModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="projectListWrap" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div class="field" style="border-top:1px solid var(--border);padding-top:14px;">
+          <label for="np-name">Add a project</label>
+          <input class="text-input" id="np-name" placeholder="Property name, e.g. Home2 Suites — Canton">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="np-brand">Brand</label>
+            <input class="text-input" id="np-brand" placeholder="e.g. WoodSpring Suites">
+          </div>
+          <div class="field">
+            <label for="np-location">City / state</label>
+            <input class="text-input" id="np-location" placeholder="e.g. Canton, GA">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <span></span>
+          <div class="right">
+            <button type="button" class="btn btn-accent" id="addProjectBtn">Add project</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Team modal (owner only) -->
+  <div class="modal-overlay" id="teamModal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Team access</h2>
+        <button class="modal-close" id="teamModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="teamListWrap" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div class="field" style="border-top:1px solid var(--border);padding-top:14px;">
+          <label for="nt-email">Add someone by email</label>
+          <input class="text-input" id="nt-email" type="email" placeholder="Exact email they sign in with">
+        </div>
+        <div class="field">
+          <label for="nt-name">Name (optional)</label>
+          <input class="text-input" id="nt-name" placeholder="So you recognize them in the list">
+        </div>
+        <div class="modal-actions">
+          <span></span>
+          <div class="right">
+            <button type="button" class="btn btn-accent" id="addTeamBtn">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

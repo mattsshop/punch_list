@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Photos live under punchlist-photos/{projectId}/{filename}. Any signed-in
+// user can read/write — the real access gate is Firestore's allowedUsers
+// list (a photo is only useful once it's linked from an item document, and
+// writing that item document already requires isAllowed()). This keeps the
+// rules simple; tighten it later with a Firestore lookup from here if you
+// want storage itself to check the allowlist too.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /punchlist-photos/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 15 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

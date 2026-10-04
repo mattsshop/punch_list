@@ -1,0 +1,46 @@
+rules_version = '2';
+
+// How this works:
+// - allowedUsers/{email} is the access list. A document there (keyed by the
+//   person's exact sign-in email) is what makes someone able to read/write
+//   the punch list. role "owner" can also manage the allowedUsers list
+//   itself; role "member" cannot.
+// - Add the first owner (yourself) by hand in the Firestore console —
+//   see README.md. Everyone after that can be added from the app's
+//   Team access panel, once you're signed in as that first owner.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isAllowed() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email));
+    }
+    function isOwner() {
+      return isAllowed()
+        && get(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email)).data.role == 'owner';
+    }
+
+    match /projects/{projectId} {
+      allow read, write: if isAllowed();
+    }
+
+    match /items/{itemId} {
+      allow read, write: if isAllowed();
+    }
+
+    match /allowedUsers/{userEmail} {
+      // Anyone with access can see who else has access.
+      allow read: if isAllowed();
+      // Only an owner can grant or revoke access.
+      allow write: if isOwner();
+    }
+
+    // Everything else is closed by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

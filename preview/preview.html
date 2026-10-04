@@ -1,0 +1,1229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Punch List (Preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f2f4f5;
+  --surface:#ffffff;
+  --surface-2:#eaedf0;
+  --border:#dbe0e4;
+  --text:#191c1f;
+  --text-dim:#5c646c;
+  --text-faint:#8b939b;
+  --accent:#c85a12;
+  --accent-ink:#ffffff;
+  --s-open:#b8382b;
+  --s-open-bg:#fbe8e5;
+  --s-progress:#a5690a;
+  --s-progress-bg:#faedd6;
+  --s-review:#2c62a8;
+  --s-review-bg:#e4edf9;
+  --s-done:#2b7d51;
+  --s-done-bg:#e1f2e7;
+  --p-critical:#b8382b;
+  --p-high:#c85a12;
+  --p-normal:#5c646c;
+  --p-low:#8b939b;
+  --shadow:0 1px 2px rgba(20,24,28,.06),0 1px 1px rgba(20,24,28,.04);
+  --shadow-lift:0 12px 32px rgba(20,24,28,.18);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#111417;
+    --surface:#1a1e22;
+    --surface-2:#23282d;
+    --border:#2d333a;
+    --text:#edeff1;
+    --text-dim:#a2aab2;
+    --text-faint:#717981;
+    --accent:#e97f2f;
+    --accent-ink:#161a1d;
+    --s-open:#e2685a;
+    --s-open-bg:#3a2220;
+    --s-progress:#dda840;
+    --s-progress-bg:#3a3120;
+    --s-review:#6fa2e0;
+    --s-review-bg:#1f2b3c;
+    --s-done:#57c084;
+    --s-done-bg:#1c3327;
+    --p-critical:#e2685a;
+    --p-high:#e97f2f;
+    --p-normal:#a2aab2;
+    --p-low:#717981;
+    --shadow:0 1px 2px rgba(0,0,0,.35);
+    --shadow-lift:0 12px 32px rgba(0,0,0,.5);
+    color-scheme:dark;
+  }
+}
+
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:"Public Sans",system-ui,-apple-system,sans-serif;
+  -webkit-tap-highlight-color:transparent;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+h1,h2,h3{
+  font-family:"Barlow Condensed",system-ui,sans-serif;
+  font-weight:700;
+  letter-spacing:.01em;
+  margin:0;
+}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;}
+button,select,input,textarea{font-family:inherit;color:inherit;}
+button{cursor:pointer;}
+img{max-width:100%;}
+[hidden]{display:none!important;}
+
+.preview-ribbon{
+  position:sticky;top:0;z-index:100;
+  background:#1a1d21;color:#f0902f;
+  font-size:12.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+  text-align:center;padding:7px 12px;
+}
+.preview-ribbon span{color:#e8eaed;font-weight:500;text-transform:none;letter-spacing:0;}
+
+/* ---------- auth screens ---------- */
+.auth-screen{
+  min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  padding:24px 16px;
+}
+.auth-card{
+  width:100%;max-width:380px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  box-shadow:var(--shadow);
+  padding:28px 26px;
+  display:flex;flex-direction:column;gap:14px;
+}
+.brand-center{justify-content:center;margin-bottom:4px;}
+.auth-sub{margin:0;font-size:14px;color:var(--text-dim);text-align:center;line-height:1.5;}
+.auth-divider{display:flex;align-items:center;gap:10px;color:var(--text-faint);font-size:12.5px;margin:2px 0;}
+.auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:var(--border);}
+.auth-form{display:flex;flex-direction:column;gap:12px;}
+.auth-links{display:flex;flex-direction:column;gap:6px;align-items:center;margin-top:2px;}
+.link-btn{background:none;border:none;color:var(--accent);font-size:13px;font-weight:600;padding:4px;}
+.auth-error{
+  background:var(--s-open-bg);color:var(--s-open);
+  border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;text-align:center;
+}
+.pending-email-row{
+  display:flex;align-items:center;gap:8px;justify-content:center;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;
+}
+.pending-email-row code{font-size:13px;word-break:break-all;}
+
+.btn-google{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  background:var(--surface);border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:10px 14px;font-size:14px;font-weight:600;
+}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:20;
+  background:var(--surface);border-bottom:1px solid var(--border);
+}
+.topbar-inner{
+  max-width:1180px;margin:0 auto;padding:12px 16px;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+}
+.brand{display:flex;align-items:center;gap:10px;margin-right:4px;}
+.brand-mark{
+  width:34px;height:34px;border-radius:8px;
+  background:var(--accent);color:var(--accent-ink);
+  display:flex;align-items:center;justify-content:center;
+  font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:15px;
+  flex:none;
+}
+.brand h1{font-size:22px;line-height:1;}
+.project-switch{display:flex;align-items:center;gap:6px;flex:1 1 220px;min-width:0;}
+.project-switch select{flex:1;min-width:0;}
+.topbar .icon-btn{
+  width:36px;height:36px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface-2);color:var(--text-dim);font-size:18px;line-height:1;
+  display:flex;align-items:center;justify-content:center;flex:none;
+}
+.user-chip{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-dim);flex:none;}
+.user-chip #userChipName{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+select, .text-input{
+  background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:9px 10px;font-size:14px;
+}
+.btn{
+  border:1px solid var(--border);background:var(--surface-2);color:var(--text);
+  border-radius:8px;padding:9px 14px;font-size:14px;font-weight:600;white-space:nowrap;
+}
+.btn-accent{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
+.btn-ghost{background:transparent;border-color:var(--border);}
+.btn-danger{background:transparent;border-color:var(--s-open);color:var(--s-open);}
+.btn:disabled{opacity:.5;cursor:default;}
+
+/* ---------- stats ---------- */
+.stats-row{max-width:1180px;margin:0 auto;padding:14px 16px 0;display:flex;gap:8px;overflow-x:auto;}
+.stat-chip{
+  flex:none;display:flex;align-items:baseline;gap:7px;
+  border:1px solid var(--border);background:var(--surface);border-radius:10px;
+  padding:9px 13px;font-size:13px;color:var(--text-dim);font-weight:600;
+}
+.stat-chip .n{font-family:"JetBrains Mono",monospace;font-size:17px;font-weight:600;color:var(--text);}
+.stat-chip.active{border-color:currentColor;}
+.stat-chip[data-k="open"]{color:var(--s-open);}
+.stat-chip[data-k="progress"]{color:var(--s-progress);}
+.stat-chip[data-k="review"]{color:var(--s-review);}
+.stat-chip[data-k="done"]{color:var(--s-done);}
+.stat-chip[data-k="all"]{color:var(--text-dim);}
+.stat-chip[data-k="all"] .n{color:var(--text);}
+
+/* ---------- filters ---------- */
+.filter-row{max-width:1180px;margin:0 auto;padding:12px 16px 4px;display:flex;gap:8px;flex-wrap:wrap;}
+.filter-row input{flex:1 1 220px;min-width:0;}
+.filter-row select{flex:1 1 140px;min-width:0;}
+
+/* ---------- grid ---------- */
+.item-grid{
+  max-width:1180px;margin:0 auto;padding:14px 16px 90px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;
+}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;
+  text-align:left;position:relative;
+}
+.card-priority{position:absolute;left:0;top:0;bottom:0;width:4px;}
+.card-body{padding:13px 14px 13px 16px;display:flex;flex-direction:column;gap:9px;flex:1;}
+.card-top{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;}
+.card-title{font-size:15px;font-weight:600;line-height:1.35;}
+.card-thumb{
+  width:56px;height:56px;border-radius:8px;flex:none;
+  background:var(--surface-2);border:1px solid var(--border);object-fit:cover;
+}
+.card-thumb-placeholder{
+  width:56px;height:56px;border-radius:8px;flex:none;
+  background:var(--surface-2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:20px;
+}
+.badge-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.badge{
+  font-size:11.5px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;
+  border-radius:6px;padding:3px 7px;background:var(--surface-2);color:var(--text-dim);
+}
+.badge-priority-Critical{color:var(--p-critical);}
+.badge-priority-High{color:var(--p-high);}
+.meta-row{display:flex;flex-wrap:wrap;row-gap:4px;column-gap:14px;font-size:12.5px;color:var(--text-dim);}
+.meta-row span{display:flex;align-items:center;gap:5px;}
+.meta-row .lbl{color:var(--text-faint);}
+.due-overdue{color:var(--s-open);font-weight:600;}
+.card-footer{
+  margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding-top:9px;border-top:1px solid var(--border);
+}
+.status-pill-select{border:none;border-radius:20px;padding:6px 10px;font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;}
+.status-Open{background-color:var(--s-open-bg);color:var(--s-open);}
+.status-In-Progress{background-color:var(--s-progress-bg);color:var(--s-progress);}
+.status-Ready-for-Review{background-color:var(--s-review-bg);color:var(--s-review);}
+.status-Closed{background-color:var(--s-done-bg);color:var(--s-done);}
+.card-edit-hint{font-size:12px;color:var(--text-faint);}
+
+/* ---------- empty state ---------- */
+.empty-state{max-width:420px;margin:60px auto;padding:0 16px;text-align:center;color:var(--text-dim);}
+.empty-state h2{font-size:22px;color:var(--text);margin-bottom:8px;}
+.empty-state p{font-size:14px;line-height:1.5;margin:0 0 16px;}
+
+/* ---------- modal ---------- */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(10,12,14,.5);
+  display:flex;align-items:flex-end;justify-content:center;z-index:50;
+}
+@media (min-width:640px){ .modal-overlay{align-items:center;padding:20px;} }
+.modal{
+  background:var(--surface);width:100%;max-width:560px;max-height:92vh;
+  border-radius:16px 16px 0 0;overflow-y:auto;box-shadow:var(--shadow-lift);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (min-width:640px){ .modal{border-radius:16px;} }
+.modal-head{
+  position:sticky;top:0;background:var(--surface);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 18px 10px;border-bottom:1px solid var(--border);
+}
+.modal-head h2{font-size:20px;}
+.modal-close{
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface-2);font-size:16px;color:var(--text-dim);
+}
+.modal-body{padding:16px 18px 20px;display:flex;flex-direction:column;gap:14px;}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field label{font-size:12.5px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.03em;}
+.field textarea,.field input,.field select{width:100%;}
+.field textarea{min-height:64px;resize:vertical;}
+.field-row{display:flex;gap:10px;}
+.field-row .field{flex:1;min-width:0;}
+.photo-picker{display:flex;align-items:center;gap:12px;}
+.photo-preview{width:76px;height:76px;border-radius:10px;object-fit:cover;border:1px solid var(--border);background:var(--surface-2);flex:none;}
+.photo-preview-empty{
+  width:76px;height:76px;border-radius:10px;border:1px dashed var(--border);background:var(--surface-2);flex:none;
+  display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:22px;
+}
+.photo-actions{display:flex;flex-direction:column;gap:6px;}
+.photo-actions .btn{padding:7px 12px;font-size:13px;}
+.modal-actions{display:flex;gap:10px;justify-content:space-between;align-items:center;padding-top:6px;}
+.modal-actions .right{display:flex;gap:10px;}
+.field-hint{font-size:12px;color:var(--text-faint);}
+
+/* ---------- toast ---------- */
+.toast{
+  position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  transform:translateX(-50%);
+  background:var(--text);color:var(--bg);
+  padding:10px 18px;border-radius:10px;font-size:13.5px;font-weight:600;
+  box-shadow:var(--shadow-lift);z-index:80;max-width:90vw;text-align:center;
+}
+
+.conn-banner{max-width:1180px;margin:10px auto 0;padding:0 16px;}
+.conn-banner .box{background:var(--s-progress-bg);color:var(--s-progress);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;}
+
+.team-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:8px 0;border-bottom:1px solid var(--border);
+}
+.team-row .who{display:flex;flex-direction:column;}
+.team-row .who .name{font-weight:600;font-size:14px;}
+.team-row .who .email{font-size:12px;color:var(--text-dim);}
+.role-badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-dim);background:var(--surface-2);border-radius:6px;padding:2px 7px;}
+</style>
+</head>
+<body>
+
+<div class="preview-ribbon">Preview build — sample data only, nothing here is saved. <span>Not connected to Firebase yet.</span></div>
+
+<!-- ======================= LOGIN SCREEN ======================= -->
+<div id="loginScreen" class="auth-screen">
+  <div class="auth-card">
+    <div class="brand brand-center">
+      <span class="brand-mark">PL</span>
+      <h1>Punch List</h1>
+    </div>
+    <p class="auth-sub">Sign in to see and update the shared punch list.</p>
+
+    <button id="googleSignInBtn" class="btn btn-google" type="button">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.66 9c0-.59.1-1.17.29-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+      Continue with Google
+    </button>
+    <p class="field-hint" style="text-align:center;">Preview: this signs you in as Matt (owner) — no real Google account needed.</p>
+
+    <div class="auth-divider"><span>or</span></div>
+
+    <form id="emailAuthForm" class="auth-form">
+      <div class="field">
+        <label for="auth-email">Email</label>
+        <input class="text-input" id="auth-email" type="email" autocomplete="email" required placeholder="try any other email to preview 'no access yet'">
+      </div>
+      <div class="field">
+        <label for="auth-password">Password</label>
+        <input class="text-input" id="auth-password" type="password" autocomplete="current-password" required minlength="6">
+      </div>
+      <button type="submit" class="btn btn-accent" id="emailAuthSubmit">Sign in</button>
+    </form>
+
+    <div class="auth-links">
+      <button type="button" class="link-btn" id="toggleAuthModeBtn">Need an account? Create one</button>
+      <button type="button" class="link-btn" id="forgotPasswordBtn">Forgot password?</button>
+    </div>
+
+    <div class="auth-error" id="authError" hidden></div>
+  </div>
+</div>
+
+<!-- ======================= ACCESS PENDING SCREEN ======================= -->
+<div id="pendingScreen" class="auth-screen" hidden>
+  <div class="auth-card">
+    <div class="brand brand-center">
+      <span class="brand-mark">PL</span>
+      <h1>Almost there</h1>
+    </div>
+    <p class="auth-sub">You're signed in, but this account doesn't have access to the punch list yet.</p>
+    <div class="pending-email-row">
+      <code id="pendingEmail" class="mono"></code>
+      <button type="button" class="btn btn-ghost" id="copyPendingEmailBtn">Copy</button>
+    </div>
+    <p class="field-hint">Send that exact email to whoever manages this app so they can add you under Team access.</p>
+    <button type="button" class="btn btn-ghost" id="pendingSignOutBtn">Sign out</button>
+  </div>
+</div>
+
+<!-- ======================= APP ======================= -->
+<div id="app" hidden>
+
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark">PL</span>
+        <h1>Punch List</h1>
+      </div>
+      <div class="project-switch">
+        <select id="projectSelect" aria-label="Project"></select>
+        <button class="icon-btn" id="manageProjectsBtn" title="Add / manage projects">+</button>
+      </div>
+      <button class="btn btn-ghost" id="teamBtn" hidden>Team</button>
+      <div class="user-chip" id="userChip">
+        <span id="userChipName"></span>
+        <button class="link-btn" id="signOutBtn">Sign out</button>
+      </div>
+      <button class="btn btn-accent" id="addItemBtn">+ New item</button>
+    </div>
+  </div>
+
+  <div class="conn-banner" id="connBanner" hidden><div class="box" id="connBannerText"></div></div>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="filter-row">
+    <input class="text-input" id="searchInput" placeholder="Search description, location, assigned to…">
+    <select id="tradeFilter"><option value="">All trades</option></select>
+    <select id="assigneeFilter"><option value="">Everyone</option></select>
+  </div>
+
+  <main class="item-grid" id="itemGrid"></main>
+  <div class="empty-state" id="emptyState" hidden>
+    <h2 id="emptyTitle">No items yet</h2>
+    <p id="emptyBody">Add the first punch list item for this project.</p>
+    <button class="btn btn-accent" id="emptyAddBtn">+ New item</button>
+  </div>
+
+  <!-- Item modal -->
+  <div class="modal-overlay" id="itemModal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="itemModalTitle">New item</h2>
+        <button class="modal-close" id="itemModalClose">&times;</button>
+      </div>
+      <form class="modal-body" id="itemForm">
+        <div class="field">
+          <label for="f-title">What needs to be fixed</label>
+          <textarea id="f-title" required placeholder="e.g. Baseboard gap along west wall, room 214"></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-trade">Trade</label>
+            <select id="f-trade"></select>
+          </div>
+          <div class="field">
+            <label for="f-priority">Priority</label>
+            <select id="f-priority">
+              <option>Normal</option>
+              <option>High</option>
+              <option>Critical</option>
+              <option>Low</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-location">Location</label>
+            <input class="text-input" id="f-location" placeholder="Room / floor / area">
+          </div>
+          <div class="field">
+            <label for="f-due">Due date</label>
+            <input class="text-input" id="f-due" type="date">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-assignee">Assigned to</label>
+            <input class="text-input" id="f-assignee" placeholder="Sub / crew / name">
+          </div>
+          <div class="field">
+            <label for="f-status">Status</label>
+            <select id="f-status">
+              <option>Open</option>
+              <option>In Progress</option>
+              <option>Ready for Review</option>
+              <option>Closed</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Photo</label>
+          <div class="photo-picker">
+            <img id="photoPreviewImg" class="photo-preview" hidden alt="">
+            <div id="photoPreviewEmpty" class="photo-preview-empty">📷</div>
+            <div class="photo-actions">
+              <label class="btn btn-ghost" for="photoInput" id="photoAddLabel">Add photo</label>
+              <button type="button" class="btn btn-ghost" id="photoRemoveBtn" hidden>Remove photo</button>
+              <input type="file" accept="image/*" capture="environment" id="photoInput" hidden>
+            </div>
+          </div>
+          <div class="field-hint" id="photoHint"></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-danger" id="deleteItemBtn" hidden>Delete</button>
+          <div class="right">
+            <button type="button" class="btn btn-ghost" id="cancelItemBtn">Cancel</button>
+            <button type="submit" class="btn btn-accent" id="saveItemBtn">Save item</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Project modal -->
+  <div class="modal-overlay" id="projectModal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Projects</h2>
+        <button class="modal-close" id="projectModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="projectListWrap" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div class="field" style="border-top:1px solid var(--border);padding-top:14px;">
+          <label for="np-name">Add a project</label>
+          <input class="text-input" id="np-name" placeholder="Property name, e.g. Home2 Suites — Canton">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="np-brand">Brand</label>
+            <input class="text-input" id="np-brand" placeholder="e.g. WoodSpring Suites">
+          </div>
+          <div class="field">
+            <label for="np-location">City / state</label>
+            <input class="text-input" id="np-location" placeholder="e.g. Canton, GA">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <span></span>
+          <div class="right">
+            <button type="button" class="btn btn-accent" id="addProjectBtn">Add project</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Team modal (owner only) -->
+  <div class="modal-overlay" id="teamModal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Team access</h2>
+        <button class="modal-close" id="teamModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="teamListWrap" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div class="field" style="border-top:1px solid var(--border);padding-top:14px;">
+          <label for="nt-email">Add someone by email</label>
+          <input class="text-input" id="nt-email" type="email" placeholder="Exact email they sign in with">
+        </div>
+        <div class="field">
+          <label for="nt-name">Name (optional)</label>
+          <input class="text-input" id="nt-name" placeholder="So you recognize them in the list">
+        </div>
+        <div class="modal-actions">
+          <span></span>
+          <div class="right">
+            <button type="button" class="btn btn-accent" id="addTeamBtn">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* =====================================================================
+   PREVIEW-ONLY MOCK BACKEND
+   Stands in for Firebase Auth / Firestore / Storage so you can click
+   through the real app UI before any Firebase project exists. Nothing
+   here is saved anywhere — reload the page and it resets to the sample
+   data below. The app logic underneath this line is otherwise the same
+   code that ships in app.js against the real Firebase SDK.
+   ===================================================================== */
+(function(){
+  "use strict";
+
+  // ---- mock auth ----
+  var authListeners = [];
+  var currentUser = null;
+  function notifyAuth(){ authListeners.forEach(function(fn){ fn(currentUser); }); }
+  function onAuthStateChanged(auth, cb){
+    authListeners.push(cb);
+    setTimeout(function(){ cb(currentUser); }, 0);
+    return function(){ authListeners = authListeners.filter(function(l){ return l!==cb; }); };
+  }
+  function GoogleAuthProvider(){}
+  function signInWithPopup(){
+    currentUser = { uid:"preview-owner", email:"matt@mattsshop.com", displayName:"Matt Holtzclaw" };
+    notifyAuth();
+    return Promise.resolve({ user: currentUser });
+  }
+  function createUserWithEmailAndPassword(auth, email){
+    currentUser = { uid:"preview-" + email, email: email, displayName:null };
+    notifyAuth();
+    return Promise.resolve({ user: currentUser });
+  }
+  function signInWithEmailAndPassword(auth, email){
+    currentUser = { uid:"preview-" + email, email: email, displayName:null };
+    notifyAuth();
+    return Promise.resolve({ user: currentUser });
+  }
+  function sendPasswordResetEmail(){ return Promise.resolve(); }
+  function signOut(){ currentUser = null; notifyAuth(); return Promise.resolve(); }
+  function getAuth(){ return {}; }
+
+  // ---- mock firestore ----
+  var store = {};      // collectionPath -> { id: data }
+  var colListeners = {}; // collectionPath -> [fn]
+  function notifyCol(path){ (colListeners[path]||[]).forEach(function(fn){ fn(); }); }
+  function getFirestore(){ return {}; }
+  function collection(db, path){ return { __kind:"collection", path: path }; }
+  function doc(db, a, b){
+    if(a && a.__kind === "collection") return { __kind:"doc", path: a.path, id: b || ("id"+Math.random().toString(36).slice(2,10)) };
+    return { __kind:"doc", path: a, id: b };
+  }
+  function query(collectionRef){
+    var clauses = Array.prototype.slice.call(arguments, 1);
+    return { __kind:"query", path: collectionRef.path, clauses: clauses };
+  }
+  function where(field, op, value){ return {type:"where", field:field, op:op, value:value}; }
+  function orderBy(field, dir){ return {type:"orderBy", field:field, dir:dir||"asc"}; }
+  function readCollection(path, clauses){
+    var docs = Object.keys(store[path]||{}).map(function(id){
+      return { id:id, exists: function(){return true;}, data: function(){ return store[path][id]; } };
+    });
+    (clauses||[]).filter(function(c){return c.type==="where";}).forEach(function(w){
+      docs = docs.filter(function(d){ var v=d.data()[w.field]; return w.op==="==" ? v===w.value : true; });
+    });
+    var ob = (clauses||[]).filter(function(c){return c.type==="orderBy";})[0];
+    if(ob){
+      docs.sort(function(a,b){
+        var av=a.data()[ob.field], bv=b.data()[ob.field];
+        if(av<bv) return ob.dir==="desc"?1:-1;
+        if(av>bv) return ob.dir==="desc"?-1:1;
+        return 0;
+      });
+    }
+    return docs;
+  }
+  function onSnapshot(ref, next){
+    var path = ref.path, clauses = ref.clauses;
+    colListeners[path] = colListeners[path] || [];
+    var cb = function(){
+      var docs = readCollection(path, clauses);
+      next({ forEach: function(fn){ docs.forEach(fn); } });
+    };
+    colListeners[path].push(cb);
+    setTimeout(cb, 0);
+    return function(){ colListeners[path] = colListeners[path].filter(function(f){return f!==cb;}); };
+  }
+  function getDoc(ref){
+    var body = (store[ref.path]||{})[ref.id];
+    return Promise.resolve({ id: ref.id, exists: function(){ return !!body; }, data: function(){ return body; } });
+  }
+  function getDocs(ref){
+    var docs = readCollection(ref.path, ref.clauses);
+    return Promise.resolve({ forEach: function(fn){ docs.forEach(fn); } });
+  }
+  function setDoc(ref, data){
+    store[ref.path] = store[ref.path] || {};
+    store[ref.path][ref.id] = data;
+    notifyCol(ref.path);
+    return Promise.resolve();
+  }
+  function addDoc(collectionRef, data){
+    var id = "id" + Math.random().toString(36).slice(2,10);
+    store[collectionRef.path] = store[collectionRef.path] || {};
+    store[collectionRef.path][id] = data;
+    notifyCol(collectionRef.path);
+    return Promise.resolve({ id: id, path: collectionRef.path });
+  }
+  function updateDoc(ref, patch){
+    store[ref.path] = store[ref.path] || {};
+    store[ref.path][ref.id] = Object.assign({}, store[ref.path][ref.id]||{}, patch);
+    notifyCol(ref.path);
+    return Promise.resolve();
+  }
+  function deleteDoc(ref){
+    if(store[ref.path]) delete store[ref.path][ref.id];
+    notifyCol(ref.path);
+    return Promise.resolve();
+  }
+
+  // ---- mock storage (photos become local blob URLs, nothing uploaded) ----
+  function getStorage(){ return {}; }
+  function ref(storage, path){ return { path: path }; }
+  function uploadBytes(sref, file){ sref.__file = file; return Promise.resolve({ ref: sref }); }
+  function getDownloadURL(sref){ return Promise.resolve(URL.createObjectURL(sref.__file)); }
+  function deleteObject(){ return Promise.resolve(); }
+
+  // ---- seed sample data (mirrors the real projects) ----
+  function seed(path, id, data){ store[path] = store[path] || {}; store[path][id] = data; }
+  seed("allowedUsers", "matt@mattsshop.com", { name:"Matt Holtzclaw", role:"owner" });
+  seed("projects", "home2-douglasville", { name:"Home2 Suites — Douglasville", brand:"Home2 Suites by Hilton", location:"Douglasville, GA", order:1, archived:false });
+  seed("projects", "woodspring-cartersville", { name:"WoodSpring Suites — Cartersville", brand:"WoodSpring Suites", location:"Cartersville, GA", order:2, archived:false });
+  seed("projects", "woodspring-douglasville", { name:"WoodSpring Suites — Douglasville", brand:"WoodSpring Suites", location:"Douglasville, GA", order:3, archived:false });
+  seed("projects", "element-duluth", { name:"Element — Duluth", brand:"Element by Westin", location:"Duluth, GA", order:4, archived:false });
+  var now = new Date().toISOString();
+  seed("items", "i1", { projectId:"home2-douglasville", title:"GFCI outlet not resetting in bathroom", trade:"Electrical", priority:"Critical", location:"Room 118", dueDate:"2026-09-26", assignedTo:"Volt Electric", status:"In Progress", photoURL:null, photoPath:null, reporter:"Matt Holtzclaw", createdAt:now, updatedAt:now });
+  seed("items", "i2", { projectId:"home2-douglasville", title:"Baseboard gap along west wall near window", trade:"Carpentry & Millwork", priority:"High", location:"Room 214", dueDate:"2026-09-29", assignedTo:"Ace Trim Co.", status:"Open", photoURL:null, photoPath:null, reporter:"Matt Holtzclaw", createdAt:now, updatedAt:now });
+  seed("items", "i3", { projectId:"home2-douglasville", title:"Touch-up paint at corridor scuff marks", trade:"Drywall & Paint", priority:"Low", location:"3rd floor corridor", dueDate:"", assignedTo:"", status:"Ready for Review", photoURL:null, photoPath:null, reporter:"Matt Holtzclaw", createdAt:now, updatedAt:now });
+  seed("items", "i4", { projectId:"home2-douglasville", title:"Missing door stop", trade:"Doors & Hardware", priority:"Normal", location:"Room 305", dueDate:"2026-09-12", assignedTo:"Summit Doors", status:"Closed", photoURL:null, photoPath:null, reporter:"Matt Holtzclaw", createdAt:now, updatedAt:now });
+  seed("items", "i5", { projectId:"woodspring-cartersville", title:"Stair nosing loose on level 2 landing", trade:"General / Punch", priority:"High", location:"Stairwell B, level 2", dueDate:"2026-09-25", assignedTo:"", status:"Open", photoURL:null, photoPath:null, reporter:"Matt Holtzclaw", createdAt:now, updatedAt:now });
+  seed("items", "i6", { projectId:"woodspring-cartersville", title:"HVAC unit rattling in room 204", trade:"HVAC", priority:"Normal", location:"Room 204", dueDate:"", assignedTo:"Peak Mechanical", status:"In Progress", photoURL:null, photoPath:null, reporter:"Matt Holtzclaw", createdAt:now, updatedAt:now });
+
+  window.__PUNCHLIST_MOCK__ = {
+    getAuth: getAuth, onAuthStateChanged: onAuthStateChanged, GoogleAuthProvider: GoogleAuthProvider,
+    signInWithPopup: signInWithPopup, createUserWithEmailAndPassword: createUserWithEmailAndPassword,
+    signInWithEmailAndPassword: signInWithEmailAndPassword, sendPasswordResetEmail: sendPasswordResetEmail,
+    signOut: signOut,
+    getFirestore: getFirestore, collection: collection, doc: doc, getDoc: getDoc, getDocs: getDocs,
+    setDoc: setDoc, addDoc: addDoc, updateDoc: updateDoc, deleteDoc: deleteDoc, onSnapshot: onSnapshot,
+    query: query, where: where, orderBy: orderBy,
+    getStorage: getStorage, ref: ref, uploadBytes: uploadBytes, getDownloadURL: getDownloadURL, deleteObject: deleteObject
+  };
+})();
+</script>
+<script>
+/* =====================================================================
+   APP LOGIC — same as app.js, wired to the mock backend above instead
+   of the real Firebase SDK imports.
+   ===================================================================== */
+(function(){
+  "use strict";
+  var M = window.__PUNCHLIST_MOCK__;
+  var getAuth=M.getAuth, onAuthStateChanged=M.onAuthStateChanged, GoogleAuthProvider=M.GoogleAuthProvider,
+    signInWithPopup=M.signInWithPopup, createUserWithEmailAndPassword=M.createUserWithEmailAndPassword,
+    signInWithEmailAndPassword=M.signInWithEmailAndPassword, sendPasswordResetEmail=M.sendPasswordResetEmail,
+    signOut=M.signOut, getFirestore=M.getFirestore, collection=M.collection, doc=M.doc, getDoc=M.getDoc,
+    getDocs=M.getDocs, setDoc=M.setDoc, addDoc=M.addDoc, updateDoc=M.updateDoc, deleteDoc=M.deleteDoc,
+    onSnapshot=M.onSnapshot, query=M.query, where=M.where, orderBy=M.orderBy, getStorage=M.getStorage,
+    ref=M.ref, uploadBytes=M.uploadBytes, getDownloadURL=M.getDownloadURL, deleteObject=M.deleteObject;
+
+  var auth = getAuth();
+  var db = getFirestore();
+  var storage = getStorage();
+
+  var TRADES = ["Electrical","Plumbing","HVAC","Drywall & Paint","Flooring","Carpentry & Millwork",
+    "Doors & Hardware","Roofing","Concrete & Masonry","Site & Landscaping","Fire & Life Safety","General / Punch"];
+  var STATUSES = ["Open","In Progress","Ready for Review","Closed"];
+  var STATUS_CLASS = {"Open":"status-Open","In Progress":"status-In-Progress","Ready for Review":"status-Ready-for-Review","Closed":"status-Closed"};
+  var STATUS_KEY = {"Open":"open","In Progress":"progress","Ready for Review":"review","Closed":"done"};
+
+  var ID_MAP = {
+    loginScreen:"loginScreen", pendingScreen:"pendingScreen", app:"app",
+    googleSignInBtn:"googleSignInBtn", emailAuthForm:"emailAuthForm",
+    authEmail:"auth-email", authPassword:"auth-password", emailAuthSubmit:"emailAuthSubmit",
+    toggleAuthModeBtn:"toggleAuthModeBtn", forgotPasswordBtn:"forgotPasswordBtn",
+    authError:"authError", pendingEmail:"pendingEmail", copyPendingEmailBtn:"copyPendingEmailBtn",
+    pendingSignOutBtn:"pendingSignOutBtn",
+
+    projectSelect:"projectSelect", manageProjectsBtn:"manageProjectsBtn", teamBtn:"teamBtn",
+    userChip:"userChip", userChipName:"userChipName", signOutBtn:"signOutBtn", addItemBtn:"addItemBtn",
+    connBanner:"connBanner", connBannerText:"connBannerText", statsRow:"statsRow",
+    searchInput:"searchInput", tradeFilter:"tradeFilter", assigneeFilter:"assigneeFilter",
+    itemGrid:"itemGrid", emptyState:"emptyState", emptyTitle:"emptyTitle", emptyBody:"emptyBody",
+    emptyAddBtn:"emptyAddBtn",
+
+    itemModal:"itemModal", itemModalTitle:"itemModalTitle", itemModalClose:"itemModalClose",
+    itemForm:"itemForm", fTitle:"f-title", fTrade:"f-trade", fPriority:"f-priority",
+    fLocation:"f-location", fDue:"f-due", fAssignee:"f-assignee", fStatus:"f-status",
+    photoPreviewImg:"photoPreviewImg", photoPreviewEmpty:"photoPreviewEmpty",
+    photoAddLabel:"photoAddLabel", photoRemoveBtn:"photoRemoveBtn", photoInput:"photoInput",
+    photoHint:"photoHint", deleteItemBtn:"deleteItemBtn", cancelItemBtn:"cancelItemBtn",
+    saveItemBtn:"saveItemBtn",
+
+    projectModal:"projectModal", projectModalClose:"projectModalClose",
+    projectListWrap:"projectListWrap", npName:"np-name", npBrand:"np-brand",
+    npLocation:"np-location", addProjectBtn:"addProjectBtn",
+
+    teamModal:"teamModal", teamModalClose:"teamModalClose", teamListWrap:"teamListWrap",
+    ntEmail:"nt-email", ntName:"nt-name", addTeamBtn:"addTeamBtn",
+
+    toast:"toast"
+  };
+  var els = {};
+  Object.keys(ID_MAP).forEach(function(key){ els[key] = document.getElementById(ID_MAP[key]); });
+
+  var state = {
+    user: null, member: null, authMode: "signin",
+    projects: [], items: [], currentProjectId: null,
+    unsubItems: null, unsubProjects: null, statusFilter: "all",
+    editingItemId: null, photoFile: null, photoRemoved: false, existingPhoto: null
+  };
+
+  function toast(msg, ms){
+    els.toast.textContent = msg;
+    els.toast.hidden = false;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function(){ els.toast.hidden = true; }, ms || 2600);
+  }
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function todayISO(){ return new Date().toISOString().slice(0,10); }
+  function fmtDate(iso){
+    if(!iso) return "";
+    var d = new Date(iso + "T00:00:00");
+    if(isNaN(d)) return iso;
+    return d.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+  }
+  function describeErr(err){
+    if(!err) return "unknown error";
+    return err.message || err.code || "unknown error";
+  }
+
+  function showScreen(name){
+    els.loginScreen.hidden = name !== "login";
+    els.pendingScreen.hidden = name !== "pending";
+    els.app.hidden = name !== "app";
+  }
+
+  els.toggleAuthModeBtn.addEventListener("click", function(){
+    state.authMode = state.authMode === "signin" ? "signup" : "signin";
+    els.emailAuthSubmit.textContent = state.authMode === "signin" ? "Sign in" : "Create account";
+    els.toggleAuthModeBtn.textContent = state.authMode === "signin" ? "Need an account? Create one" : "Have an account? Sign in";
+    els.authError.hidden = true;
+  });
+  els.googleSignInBtn.addEventListener("click", async function(){
+    els.authError.hidden = true;
+    try{ await signInWithPopup(auth, new GoogleAuthProvider()); }
+    catch(err){ els.authError.textContent = describeErr(err); els.authError.hidden = false; }
+  });
+  els.emailAuthForm.addEventListener("submit", async function(e){
+    e.preventDefault();
+    els.authError.hidden = true;
+    var email = els.authEmail.value.trim();
+    var pw = els.authPassword.value;
+    els.emailAuthSubmit.disabled = true;
+    try{
+      if(state.authMode === "signup") await createUserWithEmailAndPassword(auth, email, pw);
+      else await signInWithEmailAndPassword(auth, email, pw);
+    }catch(err){ els.authError.textContent = describeErr(err); els.authError.hidden = false; }
+    finally{ els.emailAuthSubmit.disabled = false; }
+  });
+  els.forgotPasswordBtn.addEventListener("click", async function(){
+    var email = els.authEmail.value.trim();
+    if(!email){ toast("Enter your email above first."); return; }
+    await sendPasswordResetEmail(auth, email);
+    toast("Password reset email sent. (Preview: no email actually sent.)");
+  });
+  els.signOutBtn.addEventListener("click", function(){ signOut(auth); });
+  els.pendingSignOutBtn.addEventListener("click", function(){ signOut(auth); });
+  els.copyPendingEmailBtn.addEventListener("click", async function(){
+    var email = els.pendingEmail.textContent;
+    try{ await navigator.clipboard.writeText(email); toast("Copied"); }
+    catch(e){ toast("Select the email above to copy it manually."); }
+  });
+
+  onAuthStateChanged(auth, async function(user){
+    teardownSubscriptions();
+    state.user = user;
+    state.member = null;
+    if(!user){ showScreen("login"); return; }
+    try{
+      var memberSnap = await getDoc(doc(db, "allowedUsers", user.email));
+      if(!memberSnap.exists()){
+        els.pendingEmail.textContent = user.email;
+        showScreen("pending");
+        return;
+      }
+      state.member = memberSnap.data();
+      els.userChipName.textContent = state.member.name || user.email;
+      els.teamBtn.hidden = state.member.role !== "owner";
+      showScreen("app");
+      boot();
+    }catch(err){
+      showScreen("login");
+      els.authError.textContent = "Couldn't check access — " + describeErr(err);
+      els.authError.hidden = false;
+    }
+  });
+
+  function teardownSubscriptions(){
+    if(state.unsubItems){ state.unsubItems(); state.unsubItems = null; }
+    if(state.unsubProjects){ state.unsubProjects(); state.unsubProjects = null; }
+  }
+
+  var booted = false;
+  function boot(){
+    if(booted) return;
+    booted = true;
+    populateStaticSelects();
+    subscribeProjects();
+  }
+  function populateStaticSelects(){
+    els.fTrade.innerHTML = TRADES.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join("");
+    els.tradeFilter.innerHTML = '<option value="">All trades</option>' + TRADES.map(function(t){
+      return '<option value="'+esc(t)+'">'+esc(t)+'</option>';
+    }).join("");
+  }
+
+  function subscribeProjects(){
+    var q = query(collection(db, "projects"), orderBy("order", "asc"));
+    state.unsubProjects = onSnapshot(q, function(snap){
+      var list = [];
+      snap.forEach(function(d){
+        var data = d.data();
+        if(!data || data.archived) return;
+        list.push(Object.assign({id:d.id}, data));
+      });
+      state.projects = list;
+      renderProjectSelect();
+      renderProjectManageList();
+      if(!state.currentProjectId && list.length){ selectProject(list[0].id); }
+      else if(state.currentProjectId && !list.some(function(p){return p.id===state.currentProjectId;}) && list.length){ selectProject(list[0].id); }
+      else if(!list.length){ state.currentProjectId = null; renderItems(); }
+    });
+  }
+  function renderProjectSelect(){
+    if(!state.projects.length){ els.projectSelect.innerHTML = '<option value="">No projects yet</option>'; return; }
+    els.projectSelect.innerHTML = state.projects.map(function(p){
+      return '<option value="'+esc(p.id)+'"'+(p.id===state.currentProjectId?" selected":"")+'>'+esc(p.name)+'</option>';
+    }).join("");
+  }
+  function selectProject(id){
+    state.currentProjectId = id;
+    els.projectSelect.value = id;
+    subscribeItems();
+  }
+  function renderProjectManageList(){
+    if(!state.projects.length){
+      els.projectListWrap.innerHTML = '<div class="field-hint">No projects yet — add your first one below.</div>';
+      return;
+    }
+    els.projectListWrap.innerHTML = state.projects.map(function(p){
+      return '<div class="team-row">'
+        + '<div class="who"><span class="name">'+esc(p.name)+'</span>'
+        + '<span class="email">'+esc([p.brand,p.location].filter(Boolean).join(" · "))+'</span></div>'
+        + '<button class="btn btn-ghost" data-archive="'+esc(p.id)+'" style="font-size:12px;padding:6px 10px;">Archive</button>'
+        + '</div>';
+    }).join("");
+    Array.prototype.forEach.call(els.projectListWrap.querySelectorAll("[data-archive]"), function(btn){
+      btn.addEventListener("click", async function(){
+        await updateDoc(doc(db, "projects", btn.getAttribute("data-archive")), {archived:true});
+      });
+    });
+  }
+  els.manageProjectsBtn.addEventListener("click", function(){ renderProjectManageList(); els.projectModal.hidden = false; });
+  els.projectModalClose.addEventListener("click", function(){ els.projectModal.hidden = true; });
+  els.projectModal.addEventListener("click", function(e){ if(e.target === els.projectModal) els.projectModal.hidden = true; });
+  els.addProjectBtn.addEventListener("click", async function(){
+    var name = els.npName.value.trim();
+    if(!name){ els.npName.focus(); return; }
+    els.addProjectBtn.disabled = true;
+    try{
+      await addDoc(collection(db, "projects"), {
+        name: name, brand: els.npBrand.value.trim(), location: els.npLocation.value.trim(),
+        order: Date.now(), archived: false, createdAt: new Date().toISOString(), createdBy: state.user.email
+      });
+      els.npName.value = ""; els.npBrand.value = ""; els.npLocation.value = "";
+      toast("Project added");
+    } finally { els.addProjectBtn.disabled = false; }
+  });
+  els.projectSelect.addEventListener("change", function(){ selectProject(els.projectSelect.value); });
+
+  function subscribeItems(){
+    if(state.unsubItems){ state.unsubItems(); state.unsubItems = null; }
+    els.itemGrid.innerHTML = "";
+    if(!state.currentProjectId){ state.items = []; renderItems(); return; }
+    var q = query(collection(db, "items"), where("projectId", "==", state.currentProjectId));
+    state.unsubItems = onSnapshot(q, function(snap){
+      var list = [];
+      snap.forEach(function(d){ var data = d.data(); if(data) list.push(Object.assign({id:d.id}, data)); });
+      list.sort(function(a,b){
+        var order = {"Open":0,"In Progress":1,"Ready for Review":2,"Closed":3};
+        var oa = order[a.status] == null ? 0 : order[a.status];
+        var ob = order[b.status] == null ? 0 : order[b.status];
+        if(oa !== ob) return oa - ob;
+        return (b.createdAt||"").localeCompare(a.createdAt||"");
+      });
+      state.items = list;
+      renderAssigneeFilter();
+      renderStats();
+      renderItems();
+    });
+  }
+  function renderAssigneeFilter(){
+    var names = Array.from(new Set(state.items.map(function(i){return i.assignedTo;}).filter(Boolean))).sort();
+    var cur = els.assigneeFilter.value;
+    els.assigneeFilter.innerHTML = '<option value="">Everyone</option>' + names.map(function(n){
+      return '<option value="'+esc(n)+'">'+esc(n)+'</option>';
+    }).join("");
+    if(names.indexOf(cur) !== -1) els.assigneeFilter.value = cur;
+  }
+  function renderStats(){
+    var counts = {open:0,progress:0,review:0,done:0};
+    state.items.forEach(function(i){ var k = STATUS_KEY[i.status] || "open"; counts[k] = (counts[k]||0) + 1; });
+    var total = state.items.length;
+    var defs = [
+      {k:"all", label:"All items", n:total}, {k:"open", label:"Open", n:counts.open},
+      {k:"progress", label:"In progress", n:counts.progress}, {k:"review", label:"For review", n:counts.review},
+      {k:"done", label:"Closed", n:counts.done}
+    ];
+    els.statsRow.innerHTML = defs.map(function(d){
+      return '<button class="stat-chip'+(state.statusFilter===d.k?" active":"")+'" data-k="'+d.k+'">'
+        + '<span class="n">'+d.n+'</span><span>'+esc(d.label)+'</span></button>';
+    }).join("");
+    Array.prototype.forEach.call(els.statsRow.querySelectorAll(".stat-chip"), function(btn){
+      btn.addEventListener("click", function(){ state.statusFilter = btn.getAttribute("data-k"); renderStats(); renderItems(); });
+    });
+  }
+  function filteredItems(){
+    var q = (els.searchInput.value||"").trim().toLowerCase();
+    var trade = els.tradeFilter.value;
+    var assignee = els.assigneeFilter.value;
+    var statusMap = {open:"Open",progress:"In Progress",review:"Ready for Review",done:"Closed"};
+    return state.items.filter(function(i){
+      if(state.statusFilter !== "all" && i.status !== statusMap[state.statusFilter]) return false;
+      if(trade && i.trade !== trade) return false;
+      if(assignee && i.assignedTo !== assignee) return false;
+      if(q){
+        var hay = [i.title,i.location,i.assignedTo,i.trade].filter(Boolean).join(" ").toLowerCase();
+        if(hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+  function renderItems(){
+    var list = filteredItems();
+    if(!state.currentProjectId){
+      els.itemGrid.innerHTML = "";
+      els.emptyState.hidden = false;
+      els.emptyTitle.textContent = state.projects.length ? "Pick a project" : "No projects yet";
+      els.emptyBody.textContent = state.projects.length ? "Choose a project above to see its punch list." : "Add your first hotel project to start a punch list.";
+      els.emptyAddBtn.hidden = true;
+      return;
+    }
+    if(!list.length){
+      els.itemGrid.innerHTML = "";
+      els.emptyState.hidden = false;
+      var hasAny = state.items.length > 0;
+      els.emptyTitle.textContent = hasAny ? "No items match" : "No items yet";
+      els.emptyBody.textContent = hasAny ? "Try clearing filters or search." : "Add the first punch list item for this project.";
+      els.emptyAddBtn.hidden = hasAny;
+      return;
+    }
+    els.emptyState.hidden = true;
+    var today = todayISO();
+    els.itemGrid.innerHTML = list.map(function(i){
+      var overdue = i.dueDate && i.dueDate < today && i.status !== "Closed";
+      var thumb = i.photoURL
+        ? '<img class="card-thumb" src="'+esc(i.photoURL)+'" alt="">'
+        : '<div class="card-thumb-placeholder">📷</div>';
+      var statusOptions = STATUSES.map(function(s){ return '<option value="'+s+'"'+(i.status===s?" selected":"")+'>'+s+'</option>'; }).join("");
+      return '<article class="card" data-id="'+esc(i.id)+'">'
+        + '<div class="card-priority" style="background:var(--p-'+ (i.priority||"Normal").toLowerCase() +')"></div>'
+        + '<div class="card-body">'
+        +   '<div class="card-top"><div class="card-title">'+esc(i.title)+'</div>'+thumb+'</div>'
+        +   '<div class="badge-row"><span class="badge">'+esc(i.trade||"General / Punch")+'</span>'
+        +     (i.priority && i.priority !== "Normal" ? '<span class="badge badge-priority-'+esc(i.priority)+'">'+esc(i.priority)+'</span>' : '')
+        +   '</div>'
+        +   '<div class="meta-row">'
+        +     (i.location ? '<span><span class="lbl">Where</span> '+esc(i.location)+'</span>' : '')
+        +     (i.assignedTo ? '<span><span class="lbl">Assigned</span> '+esc(i.assignedTo)+'</span>' : '')
+        +     (i.dueDate ? '<span class="'+(overdue?"due-overdue":"")+'"><span class="lbl">Due</span> '+esc(fmtDate(i.dueDate))+'</span>' : '')
+        +   '</div>'
+        +   '<div class="card-footer">'
+        +     '<select class="status-pill-select '+STATUS_CLASS[i.status]+'" data-quick-status="'+esc(i.id)+'">'+statusOptions+'</select>'
+        +     '<span class="card-edit-hint">Tap to edit</span>'
+        +   '</div>'
+        + '</div></article>';
+    }).join("");
+    Array.prototype.forEach.call(els.itemGrid.querySelectorAll(".card"), function(card){
+      card.addEventListener("click", function(e){
+        if(e.target.closest("[data-quick-status]")) return;
+        openItemModal(card.getAttribute("data-id"));
+      });
+    });
+    Array.prototype.forEach.call(els.itemGrid.querySelectorAll("[data-quick-status]"), function(sel){
+      sel.addEventListener("click", function(e){ e.stopPropagation(); });
+      sel.addEventListener("change", async function(e){
+        e.stopPropagation();
+        var id = sel.getAttribute("data-quick-status");
+        var newStatus = sel.value;
+        sel.className = "status-pill-select " + STATUS_CLASS[newStatus];
+        await updateDoc(doc(db, "items", id), {status:newStatus, updatedAt:new Date().toISOString()});
+      });
+    });
+  }
+
+  function openItemModal(id){
+    state.editingItemId = id || null;
+    state.photoFile = null; state.photoRemoved = false; state.existingPhoto = null;
+    els.itemForm.reset();
+    els.photoPreviewImg.hidden = true;
+    els.photoPreviewEmpty.hidden = false;
+    els.photoRemoveBtn.hidden = true;
+    els.photoHint.textContent = "";
+    if(id){
+      var item = state.items.find(function(i){ return i.id === id; });
+      if(!item) return;
+      els.itemModalTitle.textContent = "Edit item";
+      els.fTitle.value = item.title || "";
+      els.fTrade.value = item.trade || TRADES[TRADES.length-1];
+      els.fPriority.value = item.priority || "Normal";
+      els.fLocation.value = item.location || "";
+      els.fDue.value = item.dueDate || "";
+      els.fAssignee.value = item.assignedTo || "";
+      els.fStatus.value = item.status || "Open";
+      if(item.photoURL){
+        state.existingPhoto = {url:item.photoURL, path:item.photoPath};
+        els.photoPreviewImg.src = item.photoURL;
+        els.photoPreviewImg.hidden = false;
+        els.photoPreviewEmpty.hidden = true;
+        els.photoRemoveBtn.hidden = false;
+      }
+      els.deleteItemBtn.hidden = false;
+    } else {
+      els.itemModalTitle.textContent = "New item";
+      els.fStatus.value = "Open";
+      els.fPriority.value = "Normal";
+      els.deleteItemBtn.hidden = true;
+    }
+    els.itemModal.hidden = false;
+  }
+  function closeItemModal(){ els.itemModal.hidden = true; state.editingItemId = null; }
+  els.addItemBtn.addEventListener("click", function(){ openItemModal(null); });
+  els.emptyAddBtn.addEventListener("click", function(){ openItemModal(null); });
+  els.itemModalClose.addEventListener("click", closeItemModal);
+  els.cancelItemBtn.addEventListener("click", closeItemModal);
+  els.itemModal.addEventListener("click", function(e){ if(e.target === els.itemModal) closeItemModal(); });
+
+  els.photoInput.addEventListener("change", function(){
+    var f = els.photoInput.files && els.photoInput.files[0];
+    if(!f) return;
+    state.photoFile = f; state.photoRemoved = false;
+    var reader = new FileReader();
+    reader.onload = function(){
+      els.photoPreviewImg.src = reader.result;
+      els.photoPreviewImg.hidden = false;
+      els.photoPreviewEmpty.hidden = true;
+      els.photoRemoveBtn.hidden = false;
+    };
+    reader.readAsDataURL(f);
+  });
+  els.photoRemoveBtn.addEventListener("click", function(){
+    state.photoFile = null; state.photoRemoved = true;
+    els.photoInput.value = "";
+    els.photoPreviewImg.hidden = true;
+    els.photoPreviewEmpty.hidden = false;
+    els.photoRemoveBtn.hidden = true;
+  });
+
+  els.itemForm.addEventListener("submit", async function(e){
+    e.preventDefault();
+    if(!state.currentProjectId){ toast("Pick a project first."); return; }
+    var title = els.fTitle.value.trim();
+    if(!title){ els.fTitle.focus(); return; }
+    els.saveItemBtn.disabled = true;
+    els.saveItemBtn.textContent = "Saving…";
+    try{
+      var photoURL = state.existingPhoto ? state.existingPhoto.url : null;
+      var photoPath = state.existingPhoto ? state.existingPhoto.path : null;
+      if(state.photoFile){
+        var path = "punchlist-photos/" + state.currentProjectId + "/" + Date.now() + "-" + state.photoFile.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+        var sref = ref(storage, path);
+        await uploadBytes(sref, state.photoFile);
+        photoURL = await getDownloadURL(sref);
+        photoPath = path;
+      } else if(state.photoRemoved){
+        photoURL = null; photoPath = null;
+      }
+      var now = new Date().toISOString();
+      var data = {
+        projectId: state.currentProjectId, title: title, trade: els.fTrade.value, priority: els.fPriority.value,
+        location: els.fLocation.value.trim(), dueDate: els.fDue.value || "", assignedTo: els.fAssignee.value.trim(),
+        status: els.fStatus.value, photoURL: photoURL || null, photoPath: photoPath || null,
+        updatedAt: now, updatedBy: state.user.email
+      };
+      if(state.editingItemId){
+        await updateDoc(doc(db, "items", state.editingItemId), data);
+        toast("Item updated");
+      } else {
+        data.createdAt = now; data.createdBy = state.user.email; data.reporter = state.member.name || state.user.email;
+        await addDoc(collection(db, "items"), data);
+        toast("Item added");
+      }
+      closeItemModal();
+    } finally {
+      els.saveItemBtn.disabled = false;
+      els.saveItemBtn.textContent = "Save item";
+    }
+  });
+
+  els.deleteItemBtn.addEventListener("click", async function(){
+    if(!state.editingItemId) return;
+    var id = state.editingItemId;
+    els.deleteItemBtn.disabled = true;
+    try{
+      await deleteDoc(doc(db, "items", id));
+      toast("Item deleted");
+      closeItemModal();
+    } finally { els.deleteItemBtn.disabled = false; }
+  });
+
+  els.searchInput.addEventListener("input", renderItems);
+  els.tradeFilter.addEventListener("change", renderItems);
+  els.assigneeFilter.addEventListener("change", renderItems);
+
+  els.teamBtn.addEventListener("click", async function(){ await renderTeamList(); els.teamModal.hidden = false; });
+  els.teamModalClose.addEventListener("click", function(){ els.teamModal.hidden = true; });
+  els.teamModal.addEventListener("click", function(e){ if(e.target === els.teamModal) els.teamModal.hidden = true; });
+
+  async function renderTeamList(){
+    els.teamListWrap.innerHTML = '<div class="field-hint">Loading…</div>';
+    var snap = await getDocs(collection(db, "allowedUsers"));
+    var rows = [];
+    snap.forEach(function(d){ rows.push(Object.assign({email:d.id}, d.data())); });
+    if(!rows.length){ els.teamListWrap.innerHTML = '<div class="field-hint">Nobody listed yet.</div>'; return; }
+    els.teamListWrap.innerHTML = rows.map(function(r){
+      return '<div class="team-row">'
+        + '<div class="who"><span class="name">'+esc(r.name || r.email)+'</span>'
+        + '<span class="email">'+esc(r.email)+'</span></div>'
+        + '<div style="display:flex;align-items:center;gap:8px;">'
+        + '<span class="role-badge">'+esc(r.role||"member")+'</span>'
+        + (r.email !== state.user.email ? '<button class="btn btn-ghost" data-remove="'+esc(r.email)+'" style="font-size:12px;padding:6px 10px;">Remove</button>' : '')
+        + '</div></div>';
+    }).join("");
+    Array.prototype.forEach.call(els.teamListWrap.querySelectorAll("[data-remove]"), function(btn){
+      btn.addEventListener("click", async function(){
+        await deleteDoc(doc(db, "allowedUsers", btn.getAttribute("data-remove")));
+        toast("Removed");
+        renderTeamList();
+      });
+    });
+  }
+  els.addTeamBtn.addEventListener("click", async function(){
+    var email = els.ntEmail.value.trim();
+    if(!email){ els.ntEmail.focus(); return; }
+    els.addTeamBtn.disabled = true;
+    try{
+      await setDoc(doc(db, "allowedUsers", email), {
+        name: els.ntName.value.trim(), role: "member", addedAt: new Date().toISOString(), addedBy: state.user.email
+      });
+      els.ntEmail.value = ""; els.ntName.value = "";
+      toast("Added");
+      renderTeamList();
+    } finally { els.addTeamBtn.disabled = false; }
+  });
+})();
+</script>
+</body>
+</html>

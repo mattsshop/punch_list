@@ -1,4 +1,4 @@
-// Punch List — Firebase-backed app logic.
+// Punch List v1.2.0 — Firebase-backed app logic. See CHANGELOG.md.
 // Firestore holds projects/items/allowedUsers; Storage holds item photos.
 // See README.md for the one-time Firebase project setup this depends on.
 
@@ -16,6 +16,8 @@ import {
   getStorage, ref, uploadBytes, getDownloadURL, deleteObject
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-storage.js";
 import { firebaseConfig } from "./firebase-config.js";
+
+const APP_VERSION = "1.2.0";
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
@@ -59,6 +61,12 @@ var ID_MAP = {
   projectListWrap:"projectListWrap", npName:"np-name", npBrand:"np-brand",
   npLocation:"np-location", addProjectBtn:"addProjectBtn",
 
+  reportBtn:"reportBtn", reportModal:"reportModal", reportModalClose:"reportModalClose",
+  rpScope:"rp-scope", rpTrade:"rp-trade", rpTradeWrap:"rpTradeWrap", rpClosed:"rp-closed",
+  rpPhotos:"rp-photos", rpTo:"rp-to", rpSubject:"rp-subject", rpNote:"rp-note",
+  rpPreview:"rp-preview", rpSummary:"rpSummary", rpWarn:"rpWarn",
+  rpCopyBtn:"rpCopyBtn", rpPrintBtn:"rpPrintBtn", rpEmailBtn:"rpEmailBtn",
+
   roomsModal:"roomsModal", roomsModalTitle:"roomsModalTitle", roomsModalClose:"roomsModalClose",
   roomsListWrap:"roomsListWrap", rmInput:"rm-input", addRoomsBtn:"addRoomsBtn",
 
@@ -67,6 +75,7 @@ var ID_MAP = {
 
   toast:"toast"
 };
+Array.prototype.forEach.call(document.querySelectorAll(".js-version"), function(n){ n.textContent = "Punch List v" + APP_VERSION; });
 var els = {};
 Object.keys(ID_MAP).forEach(function(key){ els[key] = document.getElementById(ID_MAP[key]); });
 
@@ -82,6 +91,9 @@ var state = {
   statusFilter: "all",
   viewMode: "cards", // or "rooms"
   roomsProjectId: null,
+  rpAutoTo: "",
+  rpAutoSubject: "",
+  report: null, // {text, groups, meta} for the open report modal
   editingItemId: null,
   photoFile: null,
   photoRemoved: false,
@@ -924,6 +936,279 @@ els.addRoomsBtn.addEventListener("click", async function(){
   }finally{
     els.addRoomsBtn.disabled = false;
   }
+});
+
+// ---------- reports: email / print ----------
+var MAILTO_LIMIT = 1900; // many desktop mail apps drop links longer than ~2000 characters
+
+function todayLabel(){ return new Date().toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
+
+function anyScreenFilter(){
+  return state.statusFilter !== "all" || els.tradeFilter.value || els.assigneeFilter.value
+    || els.floorFilter.value || els.roomFilter.value || (els.searchInput.value||"").trim();
+}
+
+function reportItems(){
+  var scope = els.rpScope.value;
+  if(scope === "filters") return filteredItems();
+  var list = state.items.slice();
+  if(scope === "trade") list = list.filter(function(i){ return i.trade === els.rpTrade.value; });
+  if(!els.rpClosed.checked) list = list.filter(function(i){ return i.status !== "Closed"; });
+  return list;
+}
+
+function reportScopeLabel(){
+  var scope = els.rpScope.value;
+  var closed = els.rpClosed.checked;
+  if(scope === "project") return closed ? "All items" : "All open items";
+  if(scope === "trade") return els.rpTrade.value + (closed ? "" : " — open items");
+  var statusNames = {open:"Open items",progress:"In progress",review:"Ready for review",done:"Closed items"};
+  var parts = [];
+  if(state.statusFilter !== "all") parts.push(statusNames[state.statusFilter]);
+  if(els.tradeFilter.value) parts.push(els.tradeFilter.value);
+  if(els.assigneeFilter.value) parts.push(els.assigneeFilter.value);
+  if(els.floorFilter.value) parts.push(els.floorFilter.value);
+  if(els.roomFilter.value) parts.push(els.roomFilter.value === NO_ROOM_VALUE ? NO_ROOM_LABEL : roomLabel(els.roomFilter.value));
+  var q = (els.searchInput.value||"").trim();
+  if(q) parts.push('matching "'+q+'"');
+  return parts.length ? parts.join(" · ") : "All items";
+}
+
+// Where a remembered recipient is kept: per trade or assignee, so each sub's address is a one-time entry.
+function recipientKey(){
+  var scope = els.rpScope.value;
+  if(scope === "trade") return "trade:" + els.rpTrade.value;
+  if(scope === "filters"){
+    if(els.assigneeFilter.value) return "assignee:" + els.assigneeFilter.value;
+    if(els.tradeFilter.value) return "trade:" + els.tradeFilter.value;
+  }
+  return "";
+}
+function loadRecipient(){
+  var k = recipientKey();
+  if(!k) return "";
+  try{ return localStorage.getItem("punchlist-to:" + k) || ""; }catch(e){ return ""; }
+}
+function saveRecipient(){
+  var k = recipientKey();
+  var v = els.rpTo.value.trim();
+  if(!k || !v) return;
+  try{ localStorage.setItem("punchlist-to:" + k, v); }catch(e){}
+}
+
+var PRIORITY_RANK = {"Critical":0,"High":1,"Normal":2,"Low":3};
+var STATUS_RANK = {"Open":0,"In Progress":1,"Ready for Review":2,"Closed":3};
+function groupForReport(list){
+  var floors = {};
+  list.forEach(function(i){
+    var f = floorLabelOf(i.room), k = i.room || "";
+    floors[f] = floors[f] || {};
+    (floors[f][k] = floors[f][k] || []).push(i);
+  });
+  return Object.keys(floors).sort(compareFloorLabels).map(function(f){
+    return {
+      floor: f,
+      rooms: Object.keys(floors[f]).sort(compareRooms).map(function(r){
+        return {
+          room: r,
+          items: floors[f][r].slice().sort(function(a,b){
+            var sa = STATUS_RANK[a.status], sb = STATUS_RANK[b.status];
+            if(sa !== sb) return (sa==null?0:sa) - (sb==null?0:sb);
+            var pa = PRIORITY_RANK[a.priority], pb = PRIORITY_RANK[b.priority];
+            if(pa !== pb) return (pa==null?2:pa) - (pb==null?2:pb);
+            return (a.dueDate||"9999").localeCompare(b.dueDate||"9999");
+          })
+        };
+      })
+    };
+  });
+}
+
+function itemMetaParts(i){
+  var parts = [];
+  if(i.trade) parts.push(i.trade);
+  if(i.priority && i.priority !== "Normal") parts.push(i.priority + " priority");
+  if(i.dueDate) parts.push("Due " + fmtDate(i.dueDate));
+  parts.push("Status: " + (i.status || "Open"));
+  return parts;
+}
+
+function buildReportText(groups, o){
+  var L = [], n = 0;
+  if(o.note){ L.push(o.note, ""); }
+  L.push("PUNCH LIST — " + o.projectName);
+  L.push(o.scopeLabel + " · " + o.total + " item" + (o.total === 1 ? "" : "s") + " · " + o.dateStr);
+  L.push("");
+  groups.forEach(function(g){
+    L.push("=== " + g.floor.toUpperCase() + " ===");
+    g.rooms.forEach(function(r){
+      if(r.room) L.push(roomLabel(r.room).toUpperCase() + " (" + r.items.length + ")");
+      r.items.forEach(function(i){
+        n++;
+        L.push(" " + n + ". " + i.title);
+        L.push("    " + itemMetaParts(i).join(" | "));
+        if(i.location) L.push("    Spot: " + i.location);
+        if(i.assignedTo) L.push("    Assigned: " + i.assignedTo);
+        if(o.photos && i.photoURL) L.push("    Photo: " + i.photoURL);
+      });
+      L.push("");
+    });
+  });
+  L.push("Thanks,");
+  if(o.sender) L.push(o.sender);
+  return L.join("\n");
+}
+
+function mailtoUrl(to, subject, body){
+  return "mailto:" + to + "?subject=" + encodeURIComponent(subject)
+    + "&body=" + encodeURIComponent(body.replace(/\n/g, "\r\n"));
+}
+
+async function copyText(text){
+  try{
+    await navigator.clipboard.writeText(text);
+    return true;
+  }catch(e){
+    try{
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    }catch(e2){ return false; }
+  }
+}
+
+function refreshReport(){
+  var p = currentProject();
+  if(!p) return;
+  var scope = els.rpScope.value;
+  els.rpTradeWrap.hidden = scope !== "trade";
+  els.rpClosed.disabled = scope === "filters";
+
+  var list = reportItems();
+  var label = reportScopeLabel();
+  var groups = groupForReport(list);
+  var meta = {
+    projectName: p.name, scopeLabel: label, total: list.length, dateStr: todayLabel(),
+    photos: els.rpPhotos.checked, note: els.rpNote.value.trim(),
+    sender: (state.member && state.member.name) || ""
+  };
+  var text = buildReportText(groups, meta);
+  state.report = {text: text, groups: groups, meta: meta, count: list.length};
+
+  // keep auto-filled fields in step unless the person has typed their own value
+  var newSubject = "Punch list — " + p.name + " — " + label;
+  if(!els.rpSubject.value || els.rpSubject.value === state.rpAutoSubject) els.rpSubject.value = newSubject;
+  state.rpAutoSubject = newSubject;
+  var newTo = loadRecipient();
+  if(!els.rpTo.value || els.rpTo.value === state.rpAutoTo) els.rpTo.value = newTo;
+  state.rpAutoTo = newTo;
+
+  els.rpPreview.textContent = list.length ? text : "No items match this selection.";
+  els.rpSummary.textContent = list.length + " item" + (list.length === 1 ? "" : "s") + " · " + label;
+  var tooLong = mailtoUrl(els.rpTo.value.replace(/\s+/g,""), els.rpSubject.value, text).length > MAILTO_LIMIT;
+  els.rpWarn.hidden = !(list.length && tooLong);
+  if(list.length && tooLong){
+    els.rpWarn.textContent = "This list is too long to fit in an email link. Open email app will copy the list for you, then just paste it into the email body (Ctrl+V).";
+  }
+  els.rpEmailBtn.disabled = !list.length;
+  els.rpCopyBtn.disabled = !list.length;
+  els.rpPrintBtn.disabled = !list.length;
+}
+
+function openReportModal(){
+  if(!currentProject()){ toast("Pick a project first."); return; }
+  els.rpTrade.innerHTML = TRADES.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join("");
+  els.rpTrade.value = els.tradeFilter.value || TRADES[0];
+  els.rpScope.value = anyScreenFilter() ? "filters" : "project";
+  els.rpClosed.checked = false;
+  els.rpNote.value = "";
+  els.rpTo.value = ""; els.rpSubject.value = "";
+  state.rpAutoTo = ""; state.rpAutoSubject = "";
+  refreshReport();
+  els.reportModal.hidden = false;
+}
+function closeReportModal(){ els.reportModal.hidden = true; }
+
+els.reportBtn.addEventListener("click", openReportModal);
+els.reportModalClose.addEventListener("click", closeReportModal);
+els.reportModal.addEventListener("click", function(e){ if(e.target === els.reportModal) closeReportModal(); });
+["change","input"].forEach(function(evt){
+  [els.rpScope, els.rpTrade, els.rpClosed, els.rpPhotos, els.rpNote, els.rpTo, els.rpSubject].forEach(function(el){
+    el.addEventListener(evt, refreshReport);
+  });
+});
+
+els.rpCopyBtn.addEventListener("click", async function(){
+  if(!state.report) return;
+  toast((await copyText(state.report.text)) ? "Copied. Paste it into an email or text." : "Couldn't copy. Select the preview text instead.");
+});
+
+els.rpEmailBtn.addEventListener("click", async function(){
+  if(!state.report || !state.report.count) return;
+  var to = els.rpTo.value.replace(/\s+/g, "");
+  var subject = els.rpSubject.value;
+  var url = mailtoUrl(to, subject, state.report.text);
+  if(url.length > MAILTO_LIMIT){
+    var ok = await copyText(state.report.text);
+    url = mailtoUrl(to, subject, "[Paste the punch list here with Ctrl+V]");
+    toast(ok ? "List copied. Paste it into the email (Ctrl+V)." : "Couldn't copy the list. Use Copy text first.", 5000);
+  }
+  saveRecipient();
+  var a = document.createElement("a");
+  a.href = url;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+});
+
+function buildReportHTML(r){
+  var m = r.meta, n = 0;
+  var body = r.groups.map(function(g){
+    return '<h2>'+esc(g.floor)+'</h2>' + g.rooms.map(function(rm){
+      return (rm.room ? '<h3>'+esc(roomLabel(rm.room))+' <span>('+rm.items.length+')</span></h3>' : '')
+        + rm.items.map(function(i){
+          n++;
+          return '<div class="it"><div class="num">'+n+'</div><div class="main">'
+            + '<div class="t">'+esc(i.title)+'</div>'
+            + '<div class="m">'+esc(itemMetaParts(i).join(" · "))+'</div>'
+            + (i.location ? '<div class="m">Spot: '+esc(i.location)+'</div>' : '')
+            + (i.assignedTo ? '<div class="m">Assigned: '+esc(i.assignedTo)+'</div>' : '')
+            + '</div>'
+            + (m.photos && i.photoURL ? '<img src="'+esc(i.photoURL)+'" alt="">' : '')
+            + '</div>';
+        }).join("");
+    }).join("");
+  }).join("");
+  return '<!doctype html><html><head><meta charset="utf-8"><title>Punch list — '+esc(m.projectName)+'</title><style>'
+    + 'body{font:14px/1.45 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;margin:28px;max-width:820px}'
+    + 'h1{font-size:22px;margin:0 0 2px}.sub{color:#555;margin-bottom:14px}.note{white-space:pre-wrap;border-left:4px solid #c85a12;padding:6px 12px;margin:0 0 16px;background:#faf3ee}'
+    + 'h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid #ccc;padding-bottom:3px;margin:22px 0 6px}'
+    + 'h3{font-size:14px;margin:14px 0 4px}h3 span{color:#777;font-weight:400}'
+    + '.it{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #e5e5e5;break-inside:avoid}'
+    + '.num{flex:none;width:26px;font-weight:700;color:#c85a12}.main{flex:1}.t{font-weight:600}.m{color:#555;font-size:12.5px}'
+    + 'img{flex:none;width:130px;height:100px;object-fit:cover;border-radius:6px;border:1px solid #ccc}'
+    + '.foot{margin-top:22px;color:#777;font-size:11px}'
+    + '@media print{body{margin:14mm}}'
+    + '</style></head><body>'
+    + '<h1>Punch list — '+esc(m.projectName)+'</h1>'
+    + '<div class="sub">'+esc(m.scopeLabel)+' · '+m.total+' item'+(m.total===1?'':'s')+' · '+esc(m.dateStr)+'</div>'
+    + (m.note ? '<div class="note">'+esc(m.note)+'</div>' : '')
+    + body
+    + '<div class="foot">Punch List v'+APP_VERSION+(m.sender ? ' · from '+esc(m.sender) : '')+'</div>'
+    + '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})<\/script>'
+    + '</body></html>';
+}
+
+els.rpPrintBtn.addEventListener("click", function(){
+  if(!state.report || !state.report.count) return;
+  var w = window.open("", "_blank");
+  if(!w){ toast("Your browser blocked the report window. Allow pop-ups for this site and try again."); return; }
+  w.document.open();
+  w.document.write(buildReportHTML(state.report));
+  w.document.close();
 });
 
 // ---------- team modal (owner only) ----------

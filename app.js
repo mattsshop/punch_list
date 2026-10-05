@@ -1,4 +1,4 @@
-// Punch List v1.2.0 — Firebase-backed app logic. See CHANGELOG.md.
+// Punch List v1.3.0 — Firebase-backed app logic. See CHANGELOG.md.
 // Firestore holds projects/items/allowedUsers; Storage holds item photos.
 // See README.md for the one-time Firebase project setup this depends on.
 
@@ -17,7 +17,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-storage.js";
 import { firebaseConfig } from "./firebase-config.js";
 
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
@@ -67,6 +67,11 @@ var ID_MAP = {
   rpPreview:"rp-preview", rpSummary:"rpSummary", rpWarn:"rpWarn",
   rpCopyBtn:"rpCopyBtn", rpPrintBtn:"rpPrintBtn", rpEmailBtn:"rpEmailBtn",
 
+  quickAddBtn:"quickAddBtn", voiceBlock:"voiceBlock", micBtn:"micBtn", voiceHint:"voiceHint",
+  voiceText:"voiceText", voiceApplyBtn:"voiceApplyBtn", voiceChips:"voiceChips", saveNextBtn:"saveNextBtn",
+  subsModal:"subsModal", subsModalTitle:"subsModalTitle", subsModalClose:"subsModalClose",
+  subsListWrap:"subsListWrap", saveSubsBtn:"saveSubsBtn",
+
   roomsModal:"roomsModal", roomsModalTitle:"roomsModalTitle", roomsModalClose:"roomsModalClose",
   roomsListWrap:"roomsListWrap", rmInput:"rm-input", addRoomsBtn:"addRoomsBtn",
 
@@ -91,6 +96,9 @@ var state = {
   statusFilter: "all",
   viewMode: "cards", // or "rooms"
   roomsProjectId: null,
+  autoAssignee: "",
+  saveNextFlag: false,
+  subsProjectId: null,
   rpAutoTo: "",
   rpAutoSubject: "",
   report: null, // {text, groups, meta} for the open report modal
@@ -112,7 +120,12 @@ function esc(s){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
   });
 }
-function todayISO(){ return new Date().toISOString().slice(0,10); }
+function localISO(d){
+  function z(n){ return (n < 10 ? "0" : "") + n; }
+  return d.getFullYear() + "-" + z(d.getMonth()+1) + "-" + z(d.getDate());
+}
+// local calendar date (toISOString would flip to tomorrow in the evening in US time zones)
+function todayISO(){ return localISO(new Date()); }
 function fmtDate(iso){
   if(!iso) return "";
   var d = new Date(iso + "T00:00:00");
@@ -189,6 +202,8 @@ function currentProject(){
 function roomsOf(project){
   return (project && Array.isArray(project.rooms)) ? project.rooms.slice().sort(compareRooms) : [];
 }
+function subsOf(project){ return (project && project.tradeSubs) || {}; }
+
 // Rooms to offer for the current project, plus any room named on an item that is no longer in the list.
 function knownRoomsForCurrent(){
   var set = {};
@@ -378,8 +393,9 @@ function renderProjectManageList(){
     return '<div class="team-row">'
       + '<div class="who"><span class="name">'+esc(p.name)+'</span>'
       + '<span class="email">'+esc([p.brand,p.location].filter(Boolean).join(" · "))+'</span></div>'
-      + '<div style="display:flex;gap:6px;">'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'
       + '<button class="btn btn-ghost" data-rooms="'+esc(p.id)+'" style="font-size:12px;padding:6px 10px;">Rooms ('+roomsOf(p).length+')</button>'
+      + '<button class="btn btn-ghost" data-subs="'+esc(p.id)+'" style="font-size:12px;padding:6px 10px;">Subs</button>'
       + '<button class="btn btn-ghost" data-archive="'+esc(p.id)+'" style="font-size:12px;padding:6px 10px;">Archive</button>'
       + '</div>'
       + '</div>';
@@ -388,6 +404,12 @@ function renderProjectManageList(){
     btn.addEventListener("click", function(){
       els.projectModal.hidden = true;
       openRoomsModal(btn.getAttribute("data-rooms"));
+    });
+  });
+  Array.prototype.forEach.call(els.projectListWrap.querySelectorAll("[data-subs]"), function(btn){
+    btn.addEventListener("click", function(){
+      els.projectModal.hidden = true;
+      openSubsModal(btn.getAttribute("data-subs"));
     });
   });
   Array.prototype.forEach.call(els.projectListWrap.querySelectorAll("[data-archive]"), function(btn){
@@ -684,16 +706,50 @@ function fillRoomSelect(selected){
   }
 }
 
-function openItemModal(id){
-  state.editingItemId = id || null;
+function resetPhotoUI(){
   state.photoFile = null;
   state.photoRemoved = false;
   state.existingPhoto = null;
-  els.itemForm.reset();
   els.photoPreviewImg.hidden = true;
   els.photoPreviewEmpty.hidden = false;
   els.photoRemoveBtn.hidden = true;
   els.photoHint.textContent = "";
+}
+
+// Fill Assigned to from the hotel's default sub for the chosen trade, unless the person typed their own.
+function applyDefaultSub(){
+  var cur = els.fAssignee.value.trim();
+  if(cur && cur !== state.autoAssignee) return;
+  var d = subsOf(currentProject())[els.fTrade.value] || "";
+  els.fAssignee.value = d;
+  state.autoAssignee = d;
+}
+
+function clearVoice(){
+  els.voiceText.value = "";
+  els.voiceChips.innerHTML = "";
+}
+
+function initNewItemForm(preRoom){
+  els.itemModalTitle.textContent = "New item";
+  fillRoomSelect(preRoom || "");
+  els.fStatus.value = "Open";
+  els.fPriority.value = "Normal";
+  els.deleteItemBtn.hidden = true;
+  els.voiceBlock.hidden = false;
+  els.saveNextBtn.hidden = false;
+  state.autoAssignee = "";
+  applyDefaultSub();
+  clearVoice();
+}
+
+function openItemModal(id){
+  state.editingItemId = id || null;
+  els.itemForm.reset();
+  resetPhotoUI();
+  els.voiceBlock.hidden = true;
+  els.saveNextBtn.hidden = true;
+  state.autoAssignee = "";
 
   if(id){
     var item = state.items.find(function(i){ return i.id === id; });
@@ -716,23 +772,29 @@ function openItemModal(id){
     }
     els.deleteItemBtn.hidden = false;
   } else {
-    els.itemModalTitle.textContent = "New item";
-    // remember the last room used / currently filtered room to speed up walking a floor
+    // start in the room currently filtered, to speed up walking a floor
     var pre = els.roomFilter.value && els.roomFilter.value !== NO_ROOM_VALUE ? els.roomFilter.value : "";
-    fillRoomSelect(pre);
-    els.fStatus.value = "Open";
-    els.fPriority.value = "Normal";
-    els.deleteItemBtn.hidden = true;
+    initNewItemForm(pre);
   }
   els.itemModal.hidden = false;
 }
 
 function closeItemModal(){
+  stopListening(true);
   els.itemModal.hidden = true;
   state.editingItemId = null;
 }
 
+els.fTrade.addEventListener("change", function(){
+  if(!state.editingItemId) applyDefaultSub();
+});
+
 els.addItemBtn.addEventListener("click", function(){ openItemModal(null); });
+els.quickAddBtn.addEventListener("click", function(){
+  if(!state.currentProjectId){ toast("Pick a project first."); return; }
+  openItemModal(null);
+  els.photoInput.click(); // same tap, so the browser allows the camera to open
+});
 els.emptyAddBtn.addEventListener("click", function(){ openItemModal(null); });
 els.itemModalClose.addEventListener("click", closeItemModal);
 els.cancelItemBtn.addEventListener("click", closeItemModal);
@@ -761,8 +823,13 @@ els.photoRemoveBtn.addEventListener("click", function(){
   els.photoRemoveBtn.hidden = true;
 });
 
+els.saveNextBtn.addEventListener("click", function(){ state.saveNextFlag = true; });
+els.saveItemBtn.addEventListener("click", function(){ state.saveNextFlag = false; });
+
 els.itemForm.addEventListener("submit", async function(e){
   e.preventDefault();
+  var saveNext = state.saveNextFlag && !state.editingItemId;
+  state.saveNextFlag = false;
   if(!state.currentProjectId){ toast("Pick a project first."); return; }
   var title = els.fTitle.value.trim();
   if(!title){ els.fTitle.focus(); return; }
@@ -815,9 +882,18 @@ els.itemForm.addEventListener("submit", async function(e){
       data.createdBy = state.user.email;
       data.reporter = state.member.name || state.user.email;
       await addDoc(collection(db, "items"), data);
-      toast("Item added");
+      toast(saveNext ? "Saved. Ready for the next one." : "Item added");
     }
-    closeItemModal();
+    if(saveNext){
+      var keepRoom = els.fRoom.value;
+      els.itemForm.reset();
+      resetPhotoUI();
+      initNewItemForm(keepRoom);
+      var box = els.itemModal.querySelector(".modal");
+      if(box) box.scrollTop = 0;
+    } else {
+      closeItemModal();
+    }
   }catch(err){
     toast("Couldn't save — " + describeErr(err));
   }finally{
@@ -935,6 +1011,441 @@ els.addRoomsBtn.addEventListener("click", async function(){
     toast("Couldn't add — " + describeErr(err));
   }finally{
     els.addRoomsBtn.disabled = false;
+  }
+});
+
+// ---------- voice quick add ----------
+// Speech comes from the browser's own speech recognition; the sentence is then
+// matched against known words (no AI, no cost). Everything it fills in can be edited.
+var DIGIT_W = {zero:0,oh:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9};
+var TEEN_W = {ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19};
+var TENS_W = {twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+var WEEKDAYS = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+var MONTHS = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+var MONTH_ABBR = {jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,sept:8,oct:9,nov:10,dec:11};
+
+// role nouns are always removed from the description; the others only when spoken first
+var TRADE_STRONG = [
+  ["electrician","Electrical",true],["electricians","Electrical",true],["electrical","Electrical",false],["electric","Electrical",false],
+  ["plumber","Plumbing",true],["plumbers","Plumbing",true],["plumbing","Plumbing",false],
+  ["hvac","HVAC",false],["h vac","HVAC",false],["mechanical","HVAC",false],
+  ["painter","Drywall & Paint",true],["painters","Drywall & Paint",true],["drywaller","Drywall & Paint",true],["drywall and paint","Drywall & Paint",true],["drywall & paint","Drywall & Paint",true],
+  ["flooring","Flooring",false],
+  ["carpenter","Carpentry & Millwork",true],["carpenters","Carpentry & Millwork",true],["carpentry","Carpentry & Millwork",false],["millwork","Carpentry & Millwork",false],["trim carpenter","Carpentry & Millwork",true],
+  ["doors and hardware","Doors & Hardware",true],["doors & hardware","Doors & Hardware",true],["hardware","Doors & Hardware",false],
+  ["roofer","Roofing",true],["roofing","Roofing",false],
+  ["mason","Concrete & Masonry",true],["masonry","Concrete & Masonry",false],["concrete","Concrete & Masonry",false],
+  ["landscaper","Site & Landscaping",true],["landscaping","Site & Landscaping",false],["site work","Site & Landscaping",false],["sitework","Site & Landscaping",false],
+  ["fire safety","Fire & Life Safety",true],["life safety","Fire & Life Safety",true],["fire alarm","Fire & Life Safety",false],
+  ["general","General / Punch",false],["punch","General / Punch",false]
+];
+// words describing the problem; used only to guess a trade when no trade was spoken
+var TRADE_WEAK = [
+  ["Electrical",["outlet","outlets","switch","switches","light","lights","fixture","gfci","breaker","panel","wiring","wire","cover plate","coverplate","receptacle"]],
+  ["Plumbing",["sink","toilet","faucet","leak","leaking","drain","shower","tub","water heater","pipe","valve","p-trap"]],
+  ["HVAC",["thermostat","ptac","vent","duct","air conditioner","ac unit","air handler","furnace","hvac unit"]],
+  ["Drywall & Paint",["paint","drywall","sheetrock","patch","texture","caulk","scuff","touch up","touch-up","hole in wall"]],
+  ["Flooring",["carpet","tile","vinyl","lvt","grout","transition strip"]],
+  ["Carpentry & Millwork",["baseboard","trim","cabinet","cabinets","casework","crown","shelf","closet rod","vanity"]],
+  ["Doors & Hardware",["door","doors","hinge","lock","closer","strike","threshold","peephole","deadbolt"]],
+  ["Roofing",["roof","shingle","shingles","flashing","gutter"]],
+  ["Concrete & Masonry",["slab","brick","block","curb","sidewalk"]],
+  ["Site & Landscaping",["sod","landscape","asphalt","paving","parking","striping","mulch"]],
+  ["Fire & Life Safety",["sprinkler","smoke detector","alarm","extinguisher","exit sign","strobe","pull station"]]
+];
+var FILLER = ["have","and","for","to","the","in","at","a","an","please","is","are","of","on","by","with","need","needs","tell","then","also","it"];
+
+function speechTokens(text){
+  return String(text||"").replace(/[,;!?]/g," ").replace(/\.(?=\s|$)/g," ").trim().split(/\s+/).filter(Boolean).map(function(t){
+    return {raw:t, w:t.toLowerCase().replace(/^[("'#]+|[)"':]+$/g,"")};
+  });
+}
+// where the words in `words` appear (consecutively, unused) in the tokens, or -1
+function findPhrase(toks, used, words, from){
+  for(var i = from || 0; i + words.length <= toks.length; i++){
+    var ok = true;
+    for(var k = 0; k < words.length; k++){
+      if(used[i+k] || toks[i+k].w !== words[k]){ ok = false; break; }
+    }
+    if(ok) return i;
+  }
+  return -1;
+}
+function markUsed(used, i, n){ for(var k = 0; k < n; k++) used[i+k] = true; }
+// "...outlet in room 104": also drop the "in" that pointed at the room
+function markUsedWithLead(toks, used, i, n){
+  markUsed(used, i, n);
+  while(i > 0 && !used[i-1] && ["in","at","for","of","the"].indexOf(toks[i-1].w) !== -1){ used[i-1] = true; i--; }
+}
+
+// 0..99 spoken as words, e.g. "fourteen", "twenty five", "four"
+function smallNumberAt(toks, j){
+  var t = toks[j]; if(!t) return null;
+  if(TEEN_W[t.w] != null) return {n:TEEN_W[t.w], count:1};
+  if(TENS_W[t.w] != null){
+    var n = TENS_W[t.w], c = 1, d = toks[j+1] && DIGIT_W[toks[j+1].w];
+    if(d != null && d >= 1){ n += d; c = 2; }
+    return {n:n, count:c};
+  }
+  var dd = DIGIT_W[t.w];
+  if(dd != null && dd >= 1) return {n:dd, count:1};
+  return null;
+}
+// a room number starting at token i: "104", "1 0 4", "one oh four", "two fourteen", "one hundred four"
+function roomNumberAt(toks, i){
+  var t = toks[i]; if(!t) return null;
+  if(/^\d{3,4}[a-z]?$/.test(t.w)) return {value:t.w.replace(/[a-z]$/, function(c){ return c.toUpperCase(); }), count:1};
+  if(/^\d$/.test(t.w)){
+    var s = "", n = 0;
+    while(toks[i+n] && /^\d$/.test(toks[i+n].w) && s.length < 4){ s += toks[i+n].w; n++; }
+    return s.length >= 3 ? {value:s, count:n} : null;
+  }
+  var first = DIGIT_W[t.w];
+  if(first == null || first < 1) return null;
+  var w = toks[i+1] && toks[i+1].w;
+  if(w === "hundred"){
+    var j = i + 2;
+    if(toks[j] && toks[j].w === "and") j++;
+    var rest = smallNumberAt(toks, j);
+    if(rest) return {value:String(first*100 + rest.n), count:j - i + rest.count};
+    return {value:String(first*100), count:2};
+  }
+  if(w === "oh" || w === "zero"){
+    var d = toks[i+2] && DIGIT_W[toks[i+2].w];
+    if(d != null && d >= 1) return {value:String(first*100 + d), count:3};
+  }
+  var small = smallNumberAt(toks, i+1);
+  if(small && (TEEN_W[w] != null || TENS_W[w] != null)) return {value:String(first*100 + small.n), count:1 + small.count};
+  var d1 = DIGIT_W[w], d2 = toks[i+2] && DIGIT_W[toks[i+2].w];
+  if(d1 != null && d2 != null) return {value:"" + first + d1 + d2, count:3};
+  return null;
+}
+
+function numberWord(t){
+  if(!t) return null;
+  if(/^\d+$/.test(t.w)) return parseInt(t.w, 10);
+  if(DIGIT_W[t.w] != null && t.w !== "oh") return DIGIT_W[t.w];
+  if(TEEN_W[t.w] != null) return TEEN_W[t.w];
+  if(t.w === "a" || t.w === "an") return 1;
+  return null;
+}
+
+// -> {iso, from, count} or null; "from" is the first token consumed
+function parseDueDate(toks, used, now){
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  function addDays(n){ var d = new Date(today); d.setDate(d.getDate() + n); return d; }
+  function claim(from, count){
+    // also take "by / due / before / until / on / this / next / end of" directly before
+    while(from > 0 && !used[from-1] && ["by","due","before","until","on","this","next","the","of","end"].indexOf(toks[from-1].w) !== -1){ from--; count++; }
+    markUsed(used, from, count);
+  }
+  for(var i = 0; i < toks.length; i++){
+    if(used[i]) continue;
+    var w = toks[i].w;
+    if(w === "today"){ markUsed(used, i, 1); return {iso:localISO(today)}; }
+    if(w === "tomorrow"){ claim(i, 1); return {iso:localISO(addDays(1))}; }
+    if(w === "end" && toks[i+1] && toks[i+1].w === "of" && toks[i+2] && (toks[i+2].w === "week" || (toks[i+2].w === "the" && toks[i+3] && toks[i+3].w === "week"))){
+      var cnt = toks[i+2].w === "week" ? 3 : 4;
+      var fri = (5 - today.getDay() + 7) % 7;
+      claim(i, cnt); return {iso:localISO(addDays(fri))};
+    }
+    var wd = WEEKDAYS.indexOf(w);
+    if(wd !== -1 && i > 0 && ["by","due","before","until","on","this","next"].indexOf(toks[i-1].w) !== -1){
+      var diff = (wd - today.getDay() + 7) % 7;
+      if(diff === 0) diff = 7;
+      claim(i, 1); return {iso:localISO(addDays(diff))};
+    }
+    var mi = MONTHS.indexOf(w); if(mi === -1 && MONTH_ABBR[w] != null) mi = MONTH_ABBR[w];
+    if(mi !== -1 && toks[i+1] && /^\d{1,2}(st|nd|rd|th)?$/.test(toks[i+1].w)){
+      var day = parseInt(toks[i+1].w, 10);
+      var dt = new Date(today.getFullYear(), mi, day);
+      if(dt < today) dt = new Date(today.getFullYear() + 1, mi, day);
+      claim(i, 2); return {iso:localISO(dt)};
+    }
+    var md = w.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+    if(md){
+      var yr = md[3] ? parseInt(md[3], 10) : today.getFullYear();
+      if(yr < 100) yr += 2000;
+      var d2 = new Date(yr, parseInt(md[1], 10) - 1, parseInt(md[2], 10));
+      if(!md[3] && d2 < today) d2 = new Date(yr + 1, d2.getMonth(), d2.getDate());
+      claim(i, 1); return {iso:localISO(d2)};
+    }
+    if(w === "in" && toks[i+1] && toks[i+2]){
+      var n = numberWord(toks[i+1]), unit = toks[i+2].w.replace(/s$/, "");
+      if(n != null && (unit === "day" || unit === "week")){
+        claim(i, 3); return {iso:localISO(addDays(n * (unit === "week" ? 7 : 1)))};
+      }
+    }
+  }
+  return null;
+}
+
+function titleCaseName(words){
+  return words.map(function(x){ return x.charAt(0).toUpperCase() + x.slice(1); }).join(" ");
+}
+
+// text + project context -> what was heard and what to fill in
+function parseSpeech(text, ctx){
+  var toks = speechTokens(text);
+  var used = toks.map(function(){ return false; });
+  var out = {trade:null, tradeGuessed:false, room:null, roomHeard:null, priority:null, due:null, assignee:null, assigneeFromDefault:false, title:""};
+  var rooms = ctx.rooms || [];
+  var roomSet = {}; rooms.forEach(function(r){ roomSet[r.toLowerCase()] = r; });
+  var i;
+
+  // --- room ---
+  if(rooms.length){
+    for(i = 0; i < toks.length && !out.room; i++){
+      if(["room","rm","unit","suite"].indexOf(toks[i].w) !== -1 || /^#\d/.test(toks[i].raw)){
+        var at = i + 1;
+        if(toks[at] && (toks[at].w === "number" || toks[at].w === "no")) at++;
+        var num = /^#\d/.test(toks[i].raw) ? roomNumberAt([{w:toks[i].w.replace(/^#/, ""), raw:toks[i].raw}], 0) : roomNumberAt(toks, at);
+        var span = /^#\d/.test(toks[i].raw) ? 1 : (at - i) + (num ? num.count : 0);
+        if(num){
+          out.roomHeard = num.value;
+          if(roomSet[num.value.toLowerCase()]){ out.room = roomSet[num.value.toLowerCase()]; markUsedWithLead(toks, used, i, span); }
+          break;
+        }
+      }
+    }
+    if(!out.room && !out.roomHeard){
+      for(i = 0; i < toks.length; i++){
+        if(!used[i] && /^\d{3,4}[a-z]?$/.test(toks[i].w) && roomSet[toks[i].w]){
+          out.room = roomSet[toks[i].w]; markUsedWithLead(toks, used, i, 1); break;
+        }
+      }
+    }
+    if(!out.room && !out.roomHeard){
+      var named = rooms.filter(function(r){ return !/^\d{3,4}[a-zA-Z]?$/.test(r); })
+        .sort(function(a, b){ return b.length - a.length; });
+      for(var k = 0; k < named.length && !out.room; k++){
+        var words = named[k].toLowerCase().split(/\s+/);
+        var at2 = findPhrase(toks, used, words);
+        if(at2 !== -1){ out.room = named[k]; markUsedWithLead(toks, used, at2, words.length); }
+      }
+    }
+  }
+
+  // --- priority ---
+  var PRI = [
+    [["critical"],"Critical"],[["urgent"],"Critical"],[["emergency"],"Critical"],[["asap"],"Critical"],
+    [["high","priority"],"High"],[["priority","high"],"High"],[["important"],"High"],
+    [["low","priority"],"Low"],[["priority","low"],"Low"],[["priority","critical"],"Critical"]
+  ];
+  for(var p1 = 0; p1 < PRI.length && !out.priority; p1++){
+    var pa = findPhrase(toks, used, PRI[p1][0]);
+    if(pa !== -1){ out.priority = PRI[p1][1]; markUsed(used, pa, PRI[p1][0].length); }
+  }
+
+  // --- due date ---
+  var due = parseDueDate(toks, used, ctx.now || new Date());
+  if(due) out.due = due.iso;
+
+  // --- trade ---
+  var strong = TRADE_STRONG.slice().sort(function(a, b){ return b[0].length - a[0].length; });
+  for(var s1 = 0; s1 < strong.length && !out.trade; s1++){
+    var sw = strong[s1][0].split(/\s+/);
+    var sa = findPhrase(toks, used, sw);
+    if(sa !== -1){
+      out.trade = strong[s1][1];
+      if(strong[s1][2] || sa <= 1) markUsed(used, sa, sw.length);
+    }
+  }
+  if(!out.trade){
+    var best = null;
+    TRADE_WEAK.forEach(function(entry){
+      entry[1].forEach(function(phrase){
+        var pw = phrase.split(/\s+/);
+        var pos = findPhrase(toks, used, pw);
+        if(pos !== -1 && (best === null || pos < best.pos)) best = {pos:pos, trade:entry[0]};
+      });
+    });
+    if(best){ out.trade = best.trade; out.tradeGuessed = true; }
+  }
+
+  // --- assigned to ---
+  var names = (ctx.assignees || []).filter(Boolean);
+  function nameWords(n){ return n.toLowerCase().replace(/[.,]/g, "").split(/\s+/).filter(Boolean); }
+  var firstWordCount = {};
+  names.forEach(function(n){ var f = nameWords(n)[0]; firstWordCount[f] = (firstWordCount[f] || 0) + 1; });
+  var nameFound = false;
+  names.slice().sort(function(a, b){ return b.length - a.length; }).forEach(function(n){
+    if(nameFound) return;
+    var nw = nameWords(n);
+    for(var L = nw.length; L >= 1 && !nameFound; L--){
+      var prefix = nw.slice(0, L);
+      if(L === 1 && (prefix[0].length < 4 || firstWordCount[prefix[0]] > 1)) continue;
+      var pos = findPhrase(toks, used, prefix);
+      if(pos !== -1){
+        out.assignee = n; nameFound = true;
+        var from = pos;
+        while(from > 0 && !used[from-1] && ["assign","assigned","to","tell","give","send","have"].indexOf(toks[from-1].w) !== -1) from--;
+        markUsed(used, from, pos - from + prefix.length);
+      }
+    }
+  });
+  if(!out.assignee){
+    var ap = findPhrase(toks, used, ["assigned","to"]); var alen = 2;
+    if(ap === -1){ ap = findPhrase(toks, used, ["assign","to"]); }
+    if(ap === -1){ ap = findPhrase(toks, used, ["tell"]); alen = 1; }
+    if(ap !== -1){
+      var STOP = ["by","due","in","at","room","critical","urgent","asap","today","tomorrow","to","fix","and","for"];
+      var cap = [], q = ap + alen;
+      while(q < toks.length && !used[q] && cap.length < 3 && STOP.indexOf(toks[q].w) === -1){ cap.push(toks[q].w); q++; }
+      if(cap.length){ out.assignee = titleCaseName(cap); markUsed(used, ap, alen + cap.length); }
+    }
+  }
+  if(!out.assignee && out.trade && ctx.tradeSubs && ctx.tradeSubs[out.trade]){
+    out.assignee = ctx.tradeSubs[out.trade]; out.assigneeFromDefault = true;
+  }
+
+  // --- what's left is the description ---
+  var rest = toks.filter(function(t, idx){ return !used[idx]; }).map(function(t){ return t.raw.replace(/^[,;]+|[,;]+$/g, ""); });
+  while(rest.length && FILLER.indexOf(rest[0].toLowerCase()) !== -1) rest.shift();
+  while(rest.length && FILLER.indexOf(rest[rest.length-1].toLowerCase()) !== -1) rest.pop();
+  var title = rest.join(" ").trim();
+  out.title = title ? title.charAt(0).toUpperCase() + title.slice(1) : "";
+  return out;
+}
+
+function voiceContext(){
+  var p = currentProject();
+  var subs = subsOf(p);
+  var names = {};
+  state.items.forEach(function(i){ if(i.assignedTo) names[i.assignedTo] = true; });
+  Object.keys(subs).forEach(function(t){ if(subs[t]) names[subs[t]] = true; });
+  return {rooms: roomsOf(p), assignees: Object.keys(names), tradeSubs: subs, now: new Date()};
+}
+
+function applyVoice(){
+  var text = els.voiceText.value.trim();
+  if(!text){ toast("Say or type something first."); return; }
+  var r = parseSpeech(text, voiceContext());
+  var chips = [];
+  function chip(label, kind){ chips.push('<span class="voice-chip'+(kind ? " "+kind : "")+'">'+esc(label)+'</span>'); }
+
+  var trade = r.trade || "General / Punch";
+  els.fTrade.value = trade;
+  chip("Trade: " + trade + (r.tradeGuessed ? " (guessed)" : ""), r.trade ? (r.tradeGuessed ? "guess" : "") : "warn");
+  if(!r.trade) chip("Trade not heard, check it", "warn");
+
+  if(r.room){
+    els.fRoom.value = r.room;
+    chip(roomLabel(r.room));
+  } else if(r.roomHeard){
+    chip("Room " + r.roomHeard + " isn't in this hotel's list", "warn");
+  }
+  if(r.priority){ els.fPriority.value = r.priority; chip("Priority: " + r.priority); }
+  if(r.due){ els.fDue.value = r.due; chip("Due " + fmtDate(r.due)); }
+
+  // trade changed, so the default sub may need to follow (unless a name was heard)
+  if(r.assignee){
+    els.fAssignee.value = r.assignee;
+    state.autoAssignee = r.assigneeFromDefault ? r.assignee : "";
+    chip("Assigned: " + r.assignee, r.assigneeFromDefault ? "guess" : "");
+  } else {
+    applyDefaultSub();
+  }
+  if(r.title){ els.fTitle.value = r.title; }
+  else { chip("Description not heard", "warn"); }
+  els.voiceChips.innerHTML = chips.join("");
+}
+
+var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+var recognizer = null;
+var listening = false;
+
+function setListening(on){
+  listening = on;
+  els.micBtn.classList.toggle("listening", on);
+  els.micBtn.textContent = on ? "⏹ Listening… tap to stop" : "🎤 Tap to talk";
+}
+function stopListening(abort){
+  if(recognizer && listening){
+    try{ abort ? recognizer.abort() : recognizer.stop(); }catch(e){}
+  }
+  if(abort) setListening(false);
+}
+function startListening(){
+  if(!SpeechRec){
+    toast("Voice isn't available in this browser. Use the microphone key on your phone's keyboard in the box below.", 5000);
+    els.voiceText.focus();
+    return;
+  }
+  clearVoice();
+  recognizer = new SpeechRec();
+  recognizer.lang = "en-US";
+  recognizer.interimResults = true;
+  recognizer.continuous = false;
+  recognizer.maxAlternatives = 1;
+  var finalText = "";
+  recognizer.onresult = function(ev){
+    var interim = "";
+    for(var i = ev.resultIndex; i < ev.results.length; i++){
+      var res = ev.results[i];
+      if(res.isFinal) finalText += res[0].transcript + " ";
+      else interim += res[0].transcript;
+    }
+    els.voiceText.value = (finalText + interim).trim();
+  };
+  recognizer.onerror = function(ev){
+    if(ev.error === "not-allowed" || ev.error === "service-not-allowed") toast("Microphone is blocked. Allow it for this site in your browser settings.", 5000);
+    else if(ev.error === "no-speech") toast("Didn't hear anything. Tap the mic and try again.");
+    else if(ev.error !== "aborted") toast("Voice problem: " + ev.error);
+  };
+  recognizer.onend = function(){
+    var wasOn = listening;
+    setListening(false);
+    if(wasOn && els.voiceText.value.trim() && !els.itemModal.hidden) applyVoice();
+  };
+  try{
+    recognizer.start();
+    setListening(true);
+  }catch(e){
+    setListening(false);
+    toast("Couldn't start the microphone.");
+  }
+}
+els.micBtn.addEventListener("click", function(){
+  if(listening) stopListening(false); else startListening();
+});
+els.voiceApplyBtn.addEventListener("click", applyVoice);
+if(!SpeechRec){
+  els.voiceHint.textContent = "This browser can't listen. Use your keyboard's mic key in the box below, then tap Fill form.";
+}
+
+// ---------- default subs (per project, per trade) ----------
+function openSubsModal(projectId){
+  state.subsProjectId = projectId;
+  var p = state.projects.find(function(x){ return x.id === projectId; });
+  if(!p) return;
+  els.subsModalTitle.textContent = "Default subs — " + p.name;
+  var subs = subsOf(p);
+  els.subsListWrap.innerHTML = TRADES.map(function(t){
+    return '<div class="sub-row"><span class="sub-trade">'+esc(t)+'</span>'
+      + '<input class="text-input" data-sub-trade="'+esc(t)+'" value="'+esc(subs[t] || "")+'" placeholder="Sub / company"></div>';
+  }).join("");
+  els.subsModal.hidden = false;
+}
+function closeSubsModal(){ els.subsModal.hidden = true; state.subsProjectId = null; }
+els.subsModalClose.addEventListener("click", closeSubsModal);
+els.subsModal.addEventListener("click", function(e){ if(e.target === els.subsModal) closeSubsModal(); });
+els.saveSubsBtn.addEventListener("click", async function(){
+  if(!state.subsProjectId) return;
+  var data = {};
+  Array.prototype.forEach.call(els.subsListWrap.querySelectorAll("[data-sub-trade]"), function(inp){
+    var v = inp.value.trim();
+    if(v) data[inp.getAttribute("data-sub-trade")] = v;
+  });
+  els.saveSubsBtn.disabled = true;
+  try{
+    await updateDoc(doc(db, "projects", state.subsProjectId), {tradeSubs: data});
+    toast("Default subs saved");
+    closeSubsModal();
+  }catch(err){
+    toast("Couldn't save — " + describeErr(err));
+  }finally{
+    els.saveSubsBtn.disabled = false;
   }
 });
 

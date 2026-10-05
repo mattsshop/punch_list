@@ -345,3 +345,21 @@ select, .text-input{
 }
 .app-version{text-align:center;font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--text-faint);margin-top:14px;}
 .app-footer{max-width:1180px;margin:0 auto;padding:0 16px 28px;text-align:center;font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--text-faint);}
+
+/* ---------- voice quick add ---------- */
+.voice-block{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:12px;
+  padding:12px;display:flex;flex-direction:column;gap:8px;
+}
+.voice-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.voice-text{min-height:52px;}
+.mic-btn{font-weight:700;}
+.mic-btn.listening{background:var(--s-open);border-color:var(--s-open);color:#fff;animation:micpulse 1.2s ease-in-out infinite;}
+@keyframes micpulse{0%,100%{opacity:1}50%{opacity:.65}}
+.voice-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0;}
+.voice-chip{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;background:var(--s-done-bg);color:var(--s-done);}
+.voice-chip.guess{background:var(--s-progress-bg);color:var(--s-progress);}
+.voice-chip.warn{background:var(--s-open-bg);color:var(--s-open);}
+.sub-row{display:flex;align-items:center;gap:10px;padding:5px 0;}
+.sub-row .sub-trade{flex:0 0 150px;font-size:13px;font-weight:600;}
+.sub-row input{flex:1;min-width:0;}
